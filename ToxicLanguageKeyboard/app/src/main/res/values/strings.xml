@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Toxic Language Keyboard</string>
+    <string name="keyboard_name">Toxic Keyboard</string>
+    <string name="toxic_alert_title">Toxic Content Detected!</string>
+    <string name="toxic_alert_message">The text you typed has been flagged as toxic. Would you like to edit it or proceed anyway?</string>
+    <string name="btn_edit">Edit</string>
+    <string name="btn_proceed">Proceed Anyway</string>
+    <string name="btn_enable_keyboard">1. Enable Keyboard</string>
+    <string name="btn_select_keyboard">2. Select Keyboard</string>
+    <string name="btn_overlay_permission">3. Grant Overlay Permission</string>
+</resources>

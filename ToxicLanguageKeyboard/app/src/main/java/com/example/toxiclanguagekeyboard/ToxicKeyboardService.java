@@ -5,7 +5,8 @@ import android.graphics.PixelFormat;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
 import android.inputmethodservice.KeyboardView;
-import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,6 +14,9 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputConnection;
 import android.widget.Button;
 import android.widget.TextView;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ToxicKeyboardService extends InputMethodService implements KeyboardView.OnKeyboardActionListener {
 
@@ -23,6 +27,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private StringBuilder inputBuffer = new StringBuilder();
     private SubstitutionEngine substitutionEngine;
     private ToxicityClassifier toxicityClassifier;
+
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable classificationRunnable;
 
     @Override
     public void onCreate() {
@@ -60,7 +68,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 break;
             case Keyboard.KEYCODE_DONE:
             case 10: // Enter
-                checkToxicityAndSend(true);
+                ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
+                checkToxicityAsync(true); // Space-Bar Gating: triggers on Enter
                 break;
             case Keyboard.KEYCODE_MODE_CHANGE:
                 if (keyboardView.getKeyboard() == qwertyKeyboard) {
@@ -72,7 +81,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             case 32: // Space
                 inputBuffer.append(" ");
                 ic.commitText(" ", 1);
-                checkToxicityAndSend(false);
+                checkToxicityAsync(false); // Space-Bar Gating: triggers on Space
                 break;
             case 46: // Period
             case 33: // !
@@ -80,7 +89,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 char punct = (char) primaryCode;
                 inputBuffer.append(punct);
                 ic.commitText(String.valueOf(punct), 1);
-                checkToxicityAndSend(true); // Treat end of sentence as "Done" for check
+                checkToxicityAsync(true); // Space-Bar Gating: triggers on terminal punctuation
                 break;
             default:
                 char code = (char) primaryCode;
@@ -92,21 +101,46 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         }
     }
 
-    private void checkToxicityAndSend(boolean isEndOfSentence) {
-        String currentText = inputBuffer.toString().trim();
-        if (currentText.isEmpty()) {
-            if (isEndOfSentence) {
-                sendDefaultEditorAction(true);
-            }
-            return;
+    /**
+     * Space-Bar Gating: Only triggered on space or punctuation.
+     * Asynchronous Execution: Runs on background executor thread.
+     */
+    private void checkToxicityAsync(boolean isEndOfSentence) {
+        // Debouncing: Remove any pending classification tasks
+        if (classificationRunnable != null) {
+            mainHandler.removeCallbacks(classificationRunnable);
         }
 
-        if (toxicityClassifier.isToxic(currentText) || substitutionEngine.containsToxicLanguage(currentText)) {
-            showToxicAlert(currentText, isEndOfSentence);
-        } else if (isEndOfSentence) {
-            sendDefaultEditorAction(true);
-            inputBuffer.setLength(0);
+        String fullText = inputBuffer.toString();
+        // Sentence Windowing: Look at the last 7 words for context
+        String contextText = getLastWords(fullText, 7);
+
+        if (contextText.trim().isEmpty()) return;
+
+        classificationRunnable = () -> executorService.execute(() -> {
+            // Inference Logic (Clean text, Tokenization, Probability calc) runs on background thread
+            boolean isToxic = toxicityClassifier.isToxic(contextText) || substitutionEngine.containsToxicLanguage(contextText);
+            
+            if (isToxic) {
+                // UI interaction must be on Main Thread
+                mainHandler.post(() -> showToxicAlert(contextText, isEndOfSentence));
+            } else if (isEndOfSentence) {
+                inputBuffer.setLength(0);
+            }
+        });
+
+        // Delay execution slightly for debouncing (300ms)
+        mainHandler.postDelayed(classificationRunnable, 300);
+    }
+
+    private String getLastWords(String text, int count) {
+        String[] words = text.split("\\s+");
+        if (words.length <= count) return text;
+        StringBuilder sb = new StringBuilder();
+        for (int i = words.length - count; i < words.length; i++) {
+            sb.append(words[i]).append(" ");
         }
+        return sb.toString().trim();
     }
 
     private void showToxicAlert(String toxicText, boolean isEndOfSentence) {
@@ -131,29 +165,17 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         String reframed = substitutionEngine.getReframedSentence(toxicText);
         messageView.setText("Wait! You typed: \"" + toxicText + "\"\n\nPolite version: \"" + reframed + "\"");
 
-        // We capture the length of the buffer AT THE TIME of the alert
-        final String bufferToReplace = inputBuffer.toString();
-
         btnEdit.setOnClickListener(v -> {
             InputConnection ic = getCurrentInputConnection();
             if (ic != null) {
-                // Delete everything we've buffered so far
-                ic.deleteSurroundingText(bufferToReplace.length(), 0);
-                // Insert the reframed text
+                ic.deleteSurroundingText(toxicText.length(), 0);
                 ic.commitText(reframed, 1);
-                
-                if (isEndOfSentence) {
-                    sendDefaultEditorAction(true);
-                }
             }
             inputBuffer.setLength(0);
             windowManager.removeView(dialogView);
         });
 
         btnProceed.setOnClickListener(v -> {
-            if (isEndOfSentence) {
-                sendDefaultEditorAction(true);
-            }
             inputBuffer.setLength(0);
             windowManager.removeView(dialogView);
         });
@@ -163,6 +185,12 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        executorService.shutdown();
     }
 
     @Override

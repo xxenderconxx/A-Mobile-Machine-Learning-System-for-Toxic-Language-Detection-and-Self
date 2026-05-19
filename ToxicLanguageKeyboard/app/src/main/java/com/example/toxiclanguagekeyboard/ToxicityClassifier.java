@@ -12,46 +12,70 @@ public class ToxicityClassifier {
 
     private Map<String, Double> weights = new HashMap<>();
     private double intercept = 0.0;
-    private static final double THRESHOLD = 0.7;
 
     public ToxicityClassifier(Context context) {
-        loadModel(context);
+        loadModelAsync(context);
     }
 
-    private void loadModel(Context context) {
-        try {
-            InputStream is = context.getAssets().open("model_weights.json");
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            String json = new String(buffer, StandardCharsets.UTF_8);
-            JSONObject jsonObject = new JSONObject(json);
+    private void loadModelAsync(Context context) {
+        // Background Processing: JSON weight lookup on a background thread
+        new Thread(() -> {
+            try {
+                InputStream is = context.getAssets().open("model_weights.json");
+                int size = is.available();
+                byte[] buffer = new byte[size];
+                is.read(buffer);
+                is.close();
+                String json = new String(buffer, StandardCharsets.UTF_8);
+                JSONObject jsonObject = new JSONObject(json);
 
-            intercept = jsonObject.optDouble("intercept", 0.0);
-            JSONObject weightsJson = jsonObject.getJSONObject("weights");
-            Iterator<String> keys = weightsJson.keys();
+                intercept = jsonObject.optDouble("intercept", 0.0);
+                JSONObject weightsJson = jsonObject.getJSONObject("weights");
+                Iterator<String> keys = weightsJson.keys();
 
-            while (keys.hasNext()) {
-                String key = keys.next();
-                weights.put(key.toLowerCase(), weightsJson.getDouble(key));
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    weights.put(key.toLowerCase(), weightsJson.getDouble(key));
+                }
+                isLoaded = true;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        }).start();
     }
 
+    private boolean isLoaded = false;
+
+    /**
+     * Implements the Multi-Word Rule (Adaptive Confidence Gate):
+     * - Rule A (Short Input): 1-2 words -> Threshold = 0.90
+     * - Rule B (Long Input): 3+ words -> Threshold = 0.65
+     */
     public boolean isToxic(String text) {
-        if (text == null || text.isEmpty()) return false;
-        return calculateProbability(text) >= THRESHOLD;
+        if (!isLoaded || text == null || text.trim().isEmpty()) return false;
+
+        // Normalization: convert to lowercase and remove punctuation
+        String cleaned = text.toLowerCase().replaceAll("[^a-z\\s]", "").trim();
+        if (cleaned.isEmpty()) return false;
+
+        String[] words = cleaned.split("\\s+");
+        int wordCount = words.length;
+
+        // Sigmoid calculation (handled in background by caller)
+        double probability = calculateProbability(cleaned);
+        
+        // Adaptive Confidence Gate logic
+        double threshold = (wordCount >= 3) ? 0.65 : 0.90;
+
+        return probability >= threshold;
     }
 
-    public double calculateProbability(String text) {
-        String input = text.toLowerCase().replaceAll("[^a-z ]", "");
+    public double calculateProbability(String cleanedText) {
+        if (cleanedText.isEmpty()) return 0.0;
+        
         double score = intercept;
+        String[] words = cleanedText.split("\\s+");
 
-        // Check for single words and bigrams (as found in model_weights.json)
-        String[] words = input.split("\\s+");
         for (int i = 0; i < words.length; i++) {
             // Unigram
             if (weights.containsKey(words[i])) {

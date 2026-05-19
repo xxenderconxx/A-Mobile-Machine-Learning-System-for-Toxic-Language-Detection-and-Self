@@ -27,11 +27,18 @@ def clean(text):
 # 3. VECTORIZATION WITH CONTEXT (N-GRAMS)
 # Including bigrams allows the model to differentiate "not toxic" from "toxic".
 # min_df=5 filters out rare typos that can act as "noise" features.
+custom_stops = [
+    'you', 'your', 'yours', 'me', 'my', 'mine', 
+    'are', 'is', 'am', 'will', 'have', 'has', 'do', 'does',
+    'the', 'a', 'an', 'this', 'that', 'it', 'to', 'was',
+    'shut', 'get', 'go', 'being', 'what', 'who', 'why', 'how']
+
 vectorizer = TfidfVectorizer(
-    max_features=10000, # Increased slightly to accommodate bigrams
-    stop_words='english', 
-    ngram_range=(1, 2), 
-    min_df=5 
+    max_features=30000, 
+    ngram_range=(1, 3), 
+    stop_words=custom_stops, # Pruning the pronouns
+    min_df=5,
+    sublinear_tf=True
 )
 
 X = vectorizer.fit_transform(df['comment_text'].apply(clean))
@@ -43,8 +50,8 @@ y = df['toxic']
 model = LogisticRegression(
     class_weight='balanced', 
     solver='liblinear', 
-    penalty='l2', 
-    C=0.5 
+    #penalty='l2', 
+    C=0.05
 )
 model.fit(X, y)
 
@@ -56,7 +63,7 @@ weights = model.coef_[0]
 weight_dict = {
     word: round(float(w), 4) 
     for word, w in zip(feature_names, weights) 
-    if abs(w) > 0.5 # Increased threshold to find the most influential features
+    if abs(w) > 0.7 # Increased threshold to find the most influential features
 }
 
 # Sort Descending: Highest positive weights (Toxic) at the top
@@ -73,7 +80,25 @@ output = {
     "weights": sorted_weights
 }
 
-with open('optimized_weights_v2.json', 'w') as f:
+# Add this BEFORE saving to JSON
+features_to_kill = ['are', 'shut', 'is', 'it', 'to', 'go']
+for word in features_to_kill:
+    if word in weight_dict:
+        weight_dict[word] = 0.0  # Manually neutralize the "jumpy" words
+
+# THE MANUAL OVERRIDE (Phrase Blocklist)
+# Add this right before you save the weight_dict to JSON
+manual_fixes = {
+    "poop for brains": 5.5,
+    "piece of crap": 4.8,
+    "you are stupid": 6.0
+}
+
+# Inject them into the dictionary
+for phrase, weight in manual_fixes.items():
+    weight_dict[phrase] = weight
+
+with open('optimized_weights_v8.json', 'w') as f:
     json.dump(output, f, indent=4)
 
-print(f"Success! Model trained and weights exported to optimized_weights_v2.json.")
+print(f"Success! Model trained and weights exported to optimized_weights_v8.json.")

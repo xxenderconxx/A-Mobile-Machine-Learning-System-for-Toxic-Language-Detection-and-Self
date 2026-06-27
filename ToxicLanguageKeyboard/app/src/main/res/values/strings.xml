@@ -8,4 +8,42 @@
     <string name="btn_enable_keyboard">1. Enable Keyboard</string>
     <string name="btn_select_keyboard">2. Select Keyboard</string>
     <string name="btn_overlay_permission">3. Grant Overlay Permission</string>
+
+    <string name="disclaimer_title">Legal Disclaimer</string>
+    <string name="disclaimer_message">This keyboard uses Machine Learning to detect toxic language. To provide real-time feedback, it analyzes your keystrokes locally on this device. No data is sent to the cloud or stored externally.\n\nBy using this keyboard, you agree to this local monitoring for self-regulation purposes.</string>
+    <string name="btn_agree">I Agree</string>
+    <string name="btn_exit">Exit</string>
+    <string name="toast_filtering_enabled">Filtering Enabled</string>
+    <string name="toast_filtering_disabled">Filtering Disabled</string>
+    <string name="toast_metrics_reset">Metrics reset</string>
+    <string name="overlay_already_granted">Overlay permission already granted</string>
+
+    <string name="unrecognized_word_message">The word \"%1$s\" was not found in our dictionary. Is it a toxic word?</string>
+    <string name="toxic_alert_display">Wait! You typed: \"%1$s\"\n\nPolite version: \"%2$s\"</string>
+    <string name="btn_ignore">Skip</string>
+    <string name="btn_edit_word">Edit Word</string>
+    <string name="btn_add">Safe</string>
+    <string name="btn_mark_toxic">Toxic</string>
+    <string name="btn_false_positive">False Positive</string>
+    <string name="toast_word_marked_toxic">Word marked as toxic</string>
+    <string name="toast_word_marked_safe">Word marked as safe</string>
+    <string name="toast_false_positive_reported">False positive reported</string>
+    <string name="btn_clear_dictionary">Clear Dictionary</string>
+    <string name="toast_dictionary_cleared">User dictionary cleared</string>
+
+    <string name="switch_filtering_label">Real-time Toxicity Filtering</string>
+    <string name="stats_title">Self-Regulation Metrics</string>
+    <string name="stats_format">Detections: %1$d | Edits: %2$d | Ignored: %3$d</string>
+    <string name="btn_reset_metrics">Reset Metrics</string>
+    <string name="tab_settings">Home</string>
+    <string name="tab_contribute">Contribute</string>
+    <string name="btn_upload">Upload Feedback</string>
+    <string name="feedback_stats_format">New Toxic Words: %1$d\nFalse Positives: %2$d</string>
+    <string name="no_feedback_data">No feedback data to upload</string>
+    <string name="feedback_uploaded">Feedback uploaded successfully</string>
+    <string name="upload_confirmation_title">Upload Contribution?</string>
+    <string name="upload_confirmation_message">This will temporarily use your internet connection to send anonymous feedback (toxic words and false positives) to improve the model. The app will return to offline mode immediately after.</string>
+    <string name="btn_allow_and_upload">Allow &amp; Upload</string>
+    <string name="model_updated_title">Model Updated</string>
+    <string name="model_updated_message">A new version of the app is installed. Your local word flags have been reset to align with the updated global filtering model.</string>
 </resources>

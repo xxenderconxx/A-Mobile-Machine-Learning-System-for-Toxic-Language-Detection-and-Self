@@ -11,6 +11,7 @@ import java.util.Map;
 public class SubstitutionEngine {
 
     private Map<String, String> substitutions = new HashMap<>();
+    private java.util.Set<String> toxicWordsSet = new java.util.HashSet<>();
 
     public SubstitutionEngine(Context context) {
         loadSubstitutions(context);
@@ -28,8 +29,12 @@ public class SubstitutionEngine {
             Iterator<String> keys = jsonObject.keys();
 
             while (keys.hasNext()) {
-                String key = keys.next();
-                substitutions.put(key.toLowerCase(), jsonObject.getString(key));
+                String key = keys.next().toLowerCase();
+                String value = jsonObject.getString(key);
+                substitutions.put(key, value);
+                if (!key.equals(value)) {
+                    toxicWordsSet.add(key);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -41,28 +46,47 @@ public class SubstitutionEngine {
             return input;
         }
 
-        String lowerInput = input.toLowerCase();
         String result = input;
+        // Sort keys by length (descending) to match longest phrases first (e.g., "shut up" before "up")
+        java.util.List<String> keys = new java.util.ArrayList<>(substitutions.keySet());
+        java.util.Collections.sort(keys, (a, b) -> Integer.compare(b.length(), a.length()));
 
-        // Sort keys by length descending to handle multi-word substitutions correctly
-        // For simplicity in this version, we iterate and replace.
-        for (Map.Entry<String, String> entry : substitutions.entrySet()) {
-            // Use regex for word boundaries to avoid partial matches (e.g., "idiot" in "idiotic")
-            String pattern = "(?i)\\b" + entry.getKey() + "\\b";
-            result = result.replaceAll(pattern, entry.getValue());
+        for (String key : keys) {
+            String replacement = substitutions.get(key);
+            // Use case-insensitive word boundary matching
+            String regex = "(?i)\\b" + java.util.regex.Pattern.quote(key) + "\\b";
+            result = result.replaceAll(regex, replacement);
         }
 
-        return result;
+        return postProcessGrammar(result.trim().replaceAll("\\s+", " "));
+    }
+
+    private String postProcessGrammar(String text) {
+        // Simple a/an correction: "a [vowel]" -> "an [vowel]" and "an [consonant]" -> "a [consonant]"
+        // This helps when "stupid" (consonant-led) is replaced by "uninformed" (vowel-led)
+        String processed = text.replaceAll("(?i)\\ba\\s+([aeiou])", "an $1");
+        processed = processed.replaceAll("(?i)\\ban\\s+([^aeiou])", "a $1");
+        return processed;
     }
 
     public boolean containsToxicLanguage(String input) {
         if (input == null || input.isEmpty()) return false;
-        String lowerInput = input.toLowerCase();
-        for (String key : substitutions.keySet()) {
-            if (lowerInput.contains(key)) {
+        
+        String[] words = input.toLowerCase().split("\\s+");
+        for (String word : words) {
+            String cleanWord = word.replaceAll("[^a-z]", "");
+            if (isToxicWord(cleanWord)) {
                 return true;
             }
         }
         return false;
+    }
+
+    public boolean isToxicWord(String word) {
+        return toxicWordsSet.contains(word.toLowerCase());
+    }
+
+    public boolean isKnownWord(String word) {
+        return substitutions.containsKey(word.toLowerCase());
     }
 }

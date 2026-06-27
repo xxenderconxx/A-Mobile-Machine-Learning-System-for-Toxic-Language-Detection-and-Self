@@ -52,8 +52,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="PROCEED ANYWAY"
+            android:text="@string/btn_proceed"
             android:textColor="#757575"
+            style="?android:attr/borderlessButtonStyle" />
+
+        <Button
+            android:id="@+id/btn_false_positive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/btn_false_positive"
+            android:textColor="#1976D2"
             style="?android:attr/borderlessButtonStyle" />
     </LinearLayout>
 </LinearLayout>

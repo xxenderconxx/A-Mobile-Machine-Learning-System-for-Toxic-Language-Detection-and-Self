@@ -46,6 +46,25 @@ public class ToxicityClassifier {
 
     private boolean isLoaded = false;
 
+    private String normalizeText(String text) {
+        if (text == null) return "";
+        // Obfuscation Handling: Replace common character substitutions
+        String normalized = text.toLowerCase()
+                .replace("$", "s")
+                .replace("@", "a")
+                .replace("!", "i")
+                .replace("1", "i")
+                .replace("0", "o")
+                .replace("3", "e")
+                .replace("4", "a")
+                .replace("5", "s")
+                .replace("8", "b")
+                .replace("7", "t")
+                .replace("+", "t");
+        
+        return normalized.replaceAll("[^a-z\\s]", "").trim();
+    }
+
     /**
      * Implements the Multi-Word Rule (Adaptive Confidence Gate):
      * - Rule A (Short Input): 1-2 words -> Threshold = 0.90
@@ -54,8 +73,7 @@ public class ToxicityClassifier {
     public boolean isToxic(String text) {
         if (!isLoaded || text == null || text.trim().isEmpty()) return false;
 
-        // Normalization: convert to lowercase and remove punctuation
-        String cleaned = text.toLowerCase().replaceAll("[^a-z\\s]", "").trim();
+        String cleaned = normalizeText(text);
         if (cleaned.isEmpty()) return false;
 
         String[] words = cleaned.split("\\s+");

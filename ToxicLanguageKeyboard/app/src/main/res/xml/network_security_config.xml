@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Limit internet access to only the trusted feedback server -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.toxic-keyboard-project.org</domain>
+    </domain-config>
+</network-security-config>

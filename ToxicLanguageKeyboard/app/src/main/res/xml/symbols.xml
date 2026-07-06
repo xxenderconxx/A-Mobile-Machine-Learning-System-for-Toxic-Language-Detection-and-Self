@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
-    android:keyWidth="10%p"
-    android:horizontalGap="0px"
-    android:verticalGap="0px"
-    android:keyHeight="60dp">
+    android:keyWidth="8.5%p"
+    android:horizontalGap="1.5%p"
+    android:verticalGap="10dp"
+    android:keyHeight="56dp">
 
     <Row>
         <Key android:codes="49" android:keyLabel="1" android:keyEdgeFlags="left" />
@@ -32,21 +32,24 @@
     </Row>
 
     <Row>
-        <Key android:codes="33" android:keyLabel="!" android:keyWidth="15%p" android:keyEdgeFlags="left" />
+        <Key android:codes="33" android:keyLabel="!" android:horizontalGap="5.5%p" android:keyEdgeFlags="left" />
         <Key android:codes="34" android:keyLabel="&quot;" />
         <Key android:codes="39" android:keyLabel="'" />
         <Key android:codes="58" android:keyLabel=":" />
         <Key android:codes="59" android:keyLabel=";" />
         <Key android:codes="47" android:keyLabel="/" />
         <Key android:codes="63" android:keyLabel="?" />
-        <Key android:codes="-5" android:keyIcon="@android:drawable/ic_input_delete" android:keyWidth="25%p" android:isRepeatable="true" android:keyEdgeFlags="right" />
+        <Key android:codes="-5" android:keyIcon="@drawable/ic_backspace" android:keyWidth="16%p" android:isRepeatable="true" android:keyEdgeFlags="right" />
     </Row>
 
     <Row>
-        <Key android:codes="-2" android:keyLabel="ABC" android:keyWidth="15%p" android:keyEdgeFlags="left" />
-        <Key android:codes="44" android:keyLabel="," />
-        <Key android:codes="32" android:keyLabel="SPACE" android:keyWidth="40%p" android:isRepeatable="true" />
-        <Key android:codes="46" android:keyLabel="." />
-        <Key android:codes="10" android:keyLabel="DONE" android:keyWidth="25%p" android:keyEdgeFlags="right" />
+        <Key android:codes="-2" android:keyLabel="ABC" android:keyWidth="13%p" android:horizontalGap="1%p" android:keyEdgeFlags="left" />
+        <Key android:codes="-100" android:keyIcon="@drawable/ic_emoji" android:keyWidth="10%p" />
+        <Key android:codes="-102" android:keyIcon="@drawable/ic_settings" android:keyWidth="10%p" />
+        <Key android:codes="32" android:keyIcon="@drawable/ic_space_bar" android:keyWidth="30%p" android:isRepeatable="true" />
+        <Key android:codes="-101" android:keyLabel="CLIP" android:keyWidth="10%p" />
+        <Key android:codes="46" android:keyLabel="." android:keyWidth="10%p" />
+        <Key android:codes="10" android:keyIcon="@drawable/ic_enter" android:keyWidth="11%p" android:keyEdgeFlags="right" />
     </Row>
+
 </Keyboard>

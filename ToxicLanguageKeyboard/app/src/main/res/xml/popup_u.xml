@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="40dp"
+    android:keyHeight="50dp"
+    android:horizontalGap="1dp"
+    android:verticalGap="1dp">
+    <Row>
+        <Key android:codes="55" android:keyLabel="7" />
+        <Key android:codes="251" android:keyLabel="û" />
+        <Key android:codes="252" android:keyLabel="ü" />
+    </Row>
+    <Row>
+        <Key android:codes="249" android:keyLabel="ù" />
+        <Key android:codes="250" android:keyLabel="ú" />
+        <Key android:codes="363" android:keyLabel="ū" />
+    </Row>
+</Keyboard>

@@ -83,6 +83,15 @@
                     android:layout_height="wrap_content"
                     android:hint="Test keyboard here..."
                     android:inputType="textLongMessage"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_toxicity_preview"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Model Confidence: 0.0% (Safe)"
+                    android:textSize="12sp"
+                    android:textColor="#757575"
                     android:layout_marginBottom="32dp" />
 
                 <TextView
@@ -110,12 +119,29 @@
                     android:textSize="12sp" />
 
                 <Button
+                    android:id="@+id/btn_export_metrics"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/btn_export_metrics"
+                    android:textSize="12sp" />
+
+                <Button
                     android:id="@+id/btn_clear_dictionary"
                     style="?android:attr/borderlessButtonStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_clear_dictionary"
                     android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_privacy_info"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/btn_privacy_info"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorPrimary" />
 
             </LinearLayout>
         </ScrollView>

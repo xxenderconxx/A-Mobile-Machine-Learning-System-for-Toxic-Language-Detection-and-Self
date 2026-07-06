@@ -1,8 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.inputmethodservice.KeyboardView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/keyboard_view"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_alignParentBottom="true"
-    android:keyPreviewLayout="@layout/key_preview"
-    android:background="@android:color/darker_gray" />
+    android:orientation="vertical"
+    android:background="@color/keyboard_background">
+
+    <!-- Safe-to-Type Indicator -->
+    <LinearLayout
+        android:id="@+id/safe_indicator_container"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:background="#252525">
+
+        <View
+            android:id="@+id/safe_indicator_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/indicator_dot_green" />
+
+        <TextView
+            android:id="@+id/safe_indicator_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Safe to type"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <android.inputmethodservice.KeyboardView
+        android:id="@+id/keyboard_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:keyPreviewLayout="@layout/key_preview"
+        android:keyBackground="@drawable/keyboard_key_background"
+        android:keyTextColor="@color/key_text_color"
+        android:background="@color/keyboard_background"
+        android:popupLayout="@layout/popup_container" />
+
+</LinearLayout>

@@ -19,7 +19,7 @@
     <string name="overlay_already_granted">Overlay permission already granted</string>
 
     <string name="unrecognized_word_message">The word \"%1$s\" was not found in our dictionary. Is it a toxic word?</string>
-    <string name="toxic_alert_display">Wait! You typed: \"%1$s\"\n\nPolite version: \"%2$s\"</string>
+    <string name="toxic_alert_display">Wait! You typed: \"%1$s\"\n\nPolite version: \"%2$s\"\n\nIs this how you want to be heard?</string>
     <string name="btn_ignore">Skip</string>
     <string name="btn_edit_word">Edit Word</string>
     <string name="btn_add">Safe</string>
@@ -33,7 +33,7 @@
 
     <string name="switch_filtering_label">Real-time Toxicity Filtering</string>
     <string name="stats_title">Self-Regulation Metrics</string>
-    <string name="stats_format">Detections: %1$d | Edits: %2$d | Ignored: %3$d</string>
+    <string name="stats_format">Detections: %1$d | Edits: %2$d | Ignored: %3$d\nSelf-Correction Rate: %4$.1f%%</string>
     <string name="btn_reset_metrics">Reset Metrics</string>
     <string name="tab_settings">Home</string>
     <string name="tab_contribute">Contribute</string>
@@ -46,4 +46,12 @@
     <string name="btn_allow_and_upload">Allow &amp; Upload</string>
     <string name="model_updated_title">Model Updated</string>
     <string name="model_updated_message">A new version of the app is installed. Your local word flags have been reset to align with the updated global filtering model.</string>
+    <string name="btn_privacy_info">Privacy &amp; Research Info</string>
+    <string name="research_info_title">Scope &amp; Privacy Policy</string>
+    <string name="research_info_message"><b>Scope:</b> This tool currently supports English text only. Analysis is performed locally on-device.\n\n<b>Self-Regulation:</b> This app is designed for behavioral self-regulation and follows ISO 25010 usability standards. It does not report your private messages to external parties.\n\n<b>Data:</b> Feedback data (if contributed) is anonymized and used only for model refinement.</string>
+    <string name="btn_export_metrics">Export Research Report</string>
+    <string name="toxicity_preview_format">Model Confidence: %1$.1f%% (%2$s)</string>
+    <string name="label_safe">Safe</string>
+    <string name="label_toxic">Toxic</string>
+    <string name="research_report_header">Toxic Keyboard Research Report\n------------------------------</string>
 </resources>

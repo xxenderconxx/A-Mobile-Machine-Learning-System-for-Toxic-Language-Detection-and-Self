@@ -12,37 +12,50 @@ public class SubstitutionEngine {
 
     private Map<String, String> substitutions = new HashMap<>();
     private java.util.Set<String> toxicWordsSet = new java.util.HashSet<>();
+    private boolean isLoaded = false;
 
     public SubstitutionEngine(Context context) {
-        loadSubstitutions(context);
+        loadSubstitutionsAsync(context);
     }
 
-    private void loadSubstitutions(Context context) {
-        try {
-            InputStream is = context.getAssets().open("substitutions.json");
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            String json = new String(buffer, StandardCharsets.UTF_8);
-            JSONObject jsonObject = new JSONObject(json);
-            Iterator<String> keys = jsonObject.keys();
+    private void loadSubstitutionsAsync(Context context) {
+        new Thread(() -> {
+            try {
+                InputStream is = context.getAssets().open("substitutions.json");
+                int size = is.available();
+                byte[] buffer = new byte[size];
+                is.read(buffer);
+                is.close();
+                String json = new String(buffer, StandardCharsets.UTF_8);
+                JSONObject jsonObject = new JSONObject(json);
+                Iterator<String> keys = jsonObject.keys();
 
-            while (keys.hasNext()) {
-                String key = keys.next().toLowerCase();
-                String value = jsonObject.getString(key);
-                substitutions.put(key, value);
-                if (!key.equals(value)) {
-                    toxicWordsSet.add(key);
+                Map<String, String> tempSubstitutions = new HashMap<>();
+                java.util.Set<String> tempToxicWordsSet = new java.util.HashSet<>();
+
+                while (keys.hasNext()) {
+                    String key = keys.next().toLowerCase();
+                    String value = jsonObject.getString(key);
+                    tempSubstitutions.put(key, value);
+                    if (!key.equals(value)) {
+                        tempToxicWordsSet.add(key);
+                    }
                 }
+                substitutions = tempSubstitutions;
+                toxicWordsSet = tempToxicWordsSet;
+                isLoaded = true;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        }).start();
+    }
+
+    public boolean isLoaded() {
+        return isLoaded;
     }
 
     public String getReframedSentence(String input) {
-        if (input == null || input.isEmpty()) {
+        if (!isLoaded || input == null || input.isEmpty()) {
             return input;
         }
 

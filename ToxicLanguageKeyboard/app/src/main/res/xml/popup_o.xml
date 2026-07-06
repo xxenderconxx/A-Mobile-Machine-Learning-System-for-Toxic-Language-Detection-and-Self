@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="40dp"
+    android:keyHeight="50dp"
+    android:horizontalGap="1dp"
+    android:verticalGap="1dp">
+    <Row>
+        <Key android:codes="57" android:keyLabel="9" />
+        <Key android:codes="244" android:keyLabel="ô" />
+        <Key android:codes="246" android:keyLabel="ö" />
+        <Key android:codes="242" android:keyLabel="ò" />
+    </Row>
+    <Row>
+        <Key android:codes="243" android:keyLabel="ó" />
+        <Key android:codes="339" android:keyLabel="œ" />
+        <Key android:codes="248" android:keyLabel="ø" />
+        <Key android:codes="333" android:keyLabel="ō" />
+    </Row>
+</Keyboard>

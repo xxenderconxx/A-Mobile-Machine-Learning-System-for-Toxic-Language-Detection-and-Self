@@ -88,11 +88,14 @@ public class ToxicityClassifier {
         return probability >= threshold;
     }
 
-    public double calculateProbability(String cleanedText) {
-        if (cleanedText.isEmpty()) return 0.0;
+    public double calculateProbability(String text) {
+        if (text == null || text.isEmpty()) return 0.0;
         
+        String cleaned = normalizeText(text);
+        if (cleaned.isEmpty()) return 0.0;
+
         double score = intercept;
-        String[] words = cleanedText.split("\\s+");
+        String[] words = cleaned.split("\\s+");
 
         for (int i = 0; i < words.length; i++) {
             // Unigram

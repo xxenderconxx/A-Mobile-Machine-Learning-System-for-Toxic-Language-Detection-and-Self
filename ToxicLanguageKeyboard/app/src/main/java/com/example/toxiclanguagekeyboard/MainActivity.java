@@ -3,13 +3,18 @@ package com.example.toxiclanguagekeyboard;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.Editable;
+import android.text.TextWatcher;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -39,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFeedbackStats;
     private View viewSettings;
     private View viewContribute;
+    private ToxicityClassifier classifier;
+    private TextView tvToxicityPreview;
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
         if (KEY_COUNT_DETECTIONS.equals(key) || KEY_COUNT_EDITS.equals(key) || KEY_COUNT_IGNORED.equals(key)) {
@@ -73,7 +80,14 @@ public class MainActivity extends AppCompatActivity {
         SwitchMaterial switchFiltering = findViewById(R.id.switch_filtering);
         Button btnReset = findViewById(R.id.btn_reset_stats);
         Button btnClearDict = findViewById(R.id.btn_clear_dictionary);
+        Button btnExport = findViewById(R.id.btn_export_metrics);
         Button btnUploadFeedback = findViewById(R.id.btn_upload_feedback);
+        Button btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
+        
+        EditText etTest = findViewById(R.id.et_test);
+        tvToxicityPreview = findViewById(R.id.tv_toxicity_preview);
+        
+        classifier = new ToxicityClassifier(this);
 
         // Tab Logic
         tabLayout.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
@@ -107,9 +121,18 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnClearDict.setOnClickListener(v -> {
-            prefs.edit().remove(KEY_USER_DICTIONARY).apply();
+            prefs.edit()
+                    .remove(KEY_USER_DICTIONARY)
+                    .remove(KEY_TOXIC_FEEDBACK)
+                    .remove(KEY_FALSE_POSITIVES_FEEDBACK)
+                    .apply();
+            
+            // Force a refresh of local UI stats
+            updateFeedbackStats();
             Toast.makeText(this, R.string.toast_dictionary_cleared, Toast.LENGTH_SHORT).show();
         });
+
+        btnExport.setOnClickListener(v -> exportResearchReport());
 
         btnUploadFeedback.setOnClickListener(v -> {
             java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
@@ -152,25 +175,82 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, R.string.overlay_already_granted, Toast.LENGTH_SHORT).show();
             }
         });
+
+        btnPrivacyInfo.setOnClickListener(v -> showResearchInfoDialog());
+
+        etTest.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                updateLiveToxicity(s.toString());
+            }
+        });
+    }
+
+    private void updateLiveToxicity(String text) {
+        if (text.isEmpty()) {
+            tvToxicityPreview.setText(getString(R.string.toxicity_preview_format, 0.0, getString(R.string.label_safe)));
+            return;
+        }
+        double prob = classifier.calculateProbability(text);
+        String label = prob > 0.5 ? getString(R.string.label_toxic) : getString(R.string.label_safe);
+        tvToxicityPreview.setText(getString(R.string.toxicity_preview_format, prob * 100, label));
+        tvToxicityPreview.setTextColor(prob > 0.5 ? 0xFFFF0000 : 0xFF757575);
+    }
+
+    private void exportResearchReport() {
+        int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
+        int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
+        int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
+        double rate = detections > 0 ? (double) edits / detections * 100 : 0.0;
+
+        StringBuilder report = new StringBuilder();
+        report.append(getString(R.string.research_report_header)).append("\n");
+        report.append("Timestamp: ").append(new java.util.Date().toString()).append("\n");
+        report.append("Total Detections: ").append(detections).append("\n");
+        report.append("User Edits (Corrections): ").append(edits).append("\n");
+        report.append("Ignored Alerts: ").append(ignored).append("\n");
+        report.append("Self-Correction Rate: ").append(String.format("%.2f%%", rate)).append("\n");
+        report.append("------------------------------\n");
+        
+        Intent sendIntent = new Intent();
+        sendIntent.setAction(Intent.ACTION_SEND);
+        sendIntent.putExtra(Intent.EXTRA_TEXT, report.toString());
+        sendIntent.setType("text/plain");
+        
+        Intent shareIntent = Intent.createChooser(sendIntent, "Export Report");
+        startActivity(shareIntent);
+    }
+
+    private void showResearchInfoDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.research_info_title)
+                .setMessage(android.text.Html.fromHtml(getString(R.string.research_info_message), android.text.Html.FROM_HTML_MODE_COMPACT))
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     private void showUploadConfirmationDialog(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.upload_confirmation_title)
                 .setMessage(R.string.upload_confirmation_message)
-                .setPositiveButton(R.string.btn_allow_and_upload, (dialog, which) -> {
-                    performUpload(toxic, falsePos);
-                })
+                .setPositiveButton(R.string.btn_allow_and_upload, (dialog, which) -> performUpload(toxic, falsePos))
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
     private void performUpload(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
+        if (!isNetworkAvailable()) {
+            Toast.makeText(this, "No internet connection available.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // This method acts as the "Internet Gate".
         // Code here would initiate network communication only after explicit user consent.
         
         JSONObject payload = createUploadPayload(toxic, falsePos);
-        android.util.Log.d("ToxicKeyboard", "Payload prepared: " + payload.toString());
+        android.util.Log.d("ToxicKeyboard", "Payload prepared: " + payload);
 
         Toast.makeText(this, "Connecting to secure server...", Toast.LENGTH_SHORT).show();
 
@@ -192,6 +272,16 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Data preserved for local consistency.", Toast.LENGTH_SHORT).show();
             Toast.makeText(this, "Internet access revoked.", Toast.LENGTH_SHORT).show();
         }, 2000);
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+            return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
+                                           capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
+        }
+        return false;
     }
 
     private JSONObject createUploadPayload(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
@@ -246,7 +336,11 @@ public class MainActivity extends AppCompatActivity {
         int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
         int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
         int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
-        tvStats.setText(getString(R.string.stats_format, detections, edits, ignored));
+        
+        // Behavioral Metric: Percentage of detections the user chose to self-correct
+        double correctionRate = detections > 0 ? (double) edits / detections * 100 : 0.0;
+        
+        tvStats.setText(getString(R.string.stats_format, detections, edits, ignored, correctionRate));
     }
 
     private void updateFeedbackStats() {
@@ -275,12 +369,8 @@ public class MainActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                     .setTitle(R.string.disclaimer_title)
                     .setMessage(R.string.disclaimer_message)
-                    .setPositiveButton(R.string.btn_agree, (dialog, which) -> {
-                        prefs.edit().putBoolean(KEY_DISCLAIMER_ACCEPTED, true).apply();
-                    })
-                    .setNegativeButton(R.string.btn_exit, (dialog, which) -> {
-                        finish();
-                    })
+                    .setPositiveButton(R.string.btn_agree, (dialog, which) -> prefs.edit().putBoolean(KEY_DISCLAIMER_ACCEPTED, true).apply())
+                    .setNegativeButton(R.string.btn_exit, (dialog, which) -> finish())
                     .setCancelable(false)
                     .show();
         }

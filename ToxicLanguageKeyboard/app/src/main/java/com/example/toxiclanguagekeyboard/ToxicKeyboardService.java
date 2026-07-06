@@ -15,10 +15,19 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputConnection;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.widget.Button;
 import android.widget.TextView;
+import androidx.core.content.res.ResourcesCompat;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
+import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.security.crypto.MasterKey;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -27,16 +36,28 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private KeyboardView keyboardView;
     private Keyboard qwertyKeyboard;
     private Keyboard symbolsKeyboard;
+    private Keyboard emojiKeyboard;
+    private Keyboard clipboardKeyboard;
     private boolean isCaps = false;
+    private boolean isCapsLock = false;
+    private long lastShiftClickTime = 0;
+    private long lastSpaceClickTime = 0;
+    private static final long DOUBLE_TAP_TIMEOUT = 300;
     private StringBuilder inputBuffer = new StringBuilder();
     private SubstitutionEngine substitutionEngine;
     private ToxicityClassifier toxicityClassifier;
+    private View safeIndicatorDot;
+    private TextView safeIndicatorText;
+
+    private List<String> clipboardHistory = new ArrayList<>();
+    private ClipboardManager clipboardManager;
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable classificationRunnable;
     private String lastCheckedText = "";
     private SharedPreferences prefs;
+    private SharedPreferences encryptedPrefs;
     private WindowManager overlayWindowManager;
     private Context windowContext;
     private java.util.Set<String> commonWords;
@@ -59,11 +80,66 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         substitutionEngine = new SubstitutionEngine(this);
         toxicityClassifier = new ToxicityClassifier(this);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        try {
+            MasterKey masterKey = new MasterKey.Builder(this)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build();
+
+            encryptedPrefs = EncryptedSharedPreferences.create(
+                    this,
+                    "secure_prefs",
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            );
+        } catch (GeneralSecurityException | IOException e) {
+            Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences", e);
+            // Fallback to regular prefs if encryption fails (though ideally we handle this better)
+            encryptedPrefs = prefs;
+        }
+
         initializeCommonWords();
         loadUserDictionary();
         loadToxicFeedback();
         loadFalsePositives();
+        loadClipboardHistory();
         prefs.registerOnSharedPreferenceChangeListener(prefListener);
+        
+        clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboardManager.addPrimaryClipChangedListener(this::onClipboardChanged);
+    }
+
+    private void loadClipboardHistory() {
+        String history = encryptedPrefs.getString("clipboard_history", "");
+        if (!history.isEmpty()) {
+            String[] items = history.split("\u0001");
+            clipboardHistory = new ArrayList<>(java.util.Arrays.asList(items));
+        }
+    }
+
+    private void saveClipboardHistory() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < clipboardHistory.size(); i++) {
+            sb.append(clipboardHistory.get(i));
+            if (i < clipboardHistory.size() - 1) sb.append("\u0001");
+        }
+        encryptedPrefs.edit().putString("clipboard_history", sb.toString()).apply();
+    }
+
+    private void onClipboardChanged() {
+        ClipData clip = clipboardManager.getPrimaryClip();
+        if (clip != null && clip.getItemCount() > 0) {
+            CharSequence text = clip.getItemAt(0).getText();
+            if (text != null) {
+                String val = text.toString();
+                if (!clipboardHistory.contains(val)) {
+                    clipboardHistory.add(0, val);
+                    if (clipboardHistory.size() > 10) clipboardHistory.remove(10);
+                    saveClipboardHistory();
+                }
+            }
+        }
     }
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
@@ -77,7 +153,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     };
 
     private void loadUserDictionary() {
-        java.util.Set<String> savedWords = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
+        java.util.Set<String> savedWords = encryptedPrefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
         // Create a copy to avoid mutating the set returned by SharedPreferences
         userDictionary = new java.util.HashSet<>(savedWords);
     }
@@ -145,12 +221,19 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public View onCreateInputView() {
         Log.d("ToxicKeyboard", "onCreateInputView called");
-        keyboardView = (KeyboardView) getLayoutInflater().inflate(R.layout.keyboard_view, null);
+        View root = getLayoutInflater().inflate(R.layout.keyboard_view, null);
+        keyboardView = root.findViewById(R.id.keyboard_view);
+        safeIndicatorDot = root.findViewById(R.id.safe_indicator_dot);
+        safeIndicatorText = root.findViewById(R.id.safe_indicator_text);
+        
         qwertyKeyboard = new Keyboard(this, R.xml.qwerty);
         symbolsKeyboard = new Keyboard(this, R.xml.symbols);
+        emojiKeyboard = new Keyboard(this, R.xml.emoji);
+        clipboardKeyboard = new Keyboard(this, R.xml.clipboard);
+        
         keyboardView.setKeyboard(qwertyKeyboard);
         keyboardView.setOnKeyboardActionListener(this);
-        return keyboardView;
+        return root;
     }
 
     @Override
@@ -210,9 +293,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 ic.deleteSurroundingText(1, 0);
                 break;
             case Keyboard.KEYCODE_SHIFT:
-                isCaps = !isCaps;
-                qwertyKeyboard.setShifted(isCaps);
-                keyboardView.invalidateAllKeys();
+                handleShift();
+                break;
+            case 32: // Space
+                handleSpace();
                 break;
             case Keyboard.KEYCODE_DONE:
             case 10: // Enter
@@ -226,26 +310,135 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     keyboardView.setKeyboard(qwertyKeyboard);
                 }
                 break;
-            case 32: // Space
-                inputBuffer.append(" ");
-                ic.commitText(" ", 1);
-                checkToxicityAsync(false);
+            case -100: // Emoji
+                keyboardView.setKeyboard(emojiKeyboard);
                 break;
-            case 46: // Period
-            case 33: // !
-            case 63: // ?
-                char punct = (char) primaryCode;
-                inputBuffer.append(punct);
-                ic.commitText(String.valueOf(punct), 1);
-                checkToxicityAsync(true);
+            case -101: // Clipboard
+                updateClipboardKeyboard();
+                keyboardView.setKeyboard(clipboardKeyboard);
+                break;
+            case -102: // Settings Toggle
+                toggleToxicityClassifier();
                 break;
             default:
+                if (primaryCode <= -200 && primaryCode > -210) {
+                    int index = -primaryCode - 200;
+                    if (index < clipboardHistory.size()) {
+                        ic.commitText(clipboardHistory.get(index), 1);
+                    }
+                    return;
+                }
+                if (primaryCode > 1000) { // Emoji or special unicode
+                    String emoji = new String(Character.toChars(primaryCode));
+                    ic.commitText(emoji, 1);
+                    return;
+                }
                 char code = (char) primaryCode;
                 if (Character.isLetter(code) && isCaps) {
                     code = Character.toUpperCase(code);
                 }
                 inputBuffer.append(code);
                 ic.commitText(String.valueOf(code), 1);
+                if (isCaps && !isCapsLock) {
+                    isCaps = false;
+                    qwertyKeyboard.setShifted(false);
+                    updateShiftKeyState();
+                }
+                break;
+        }
+    }
+
+    private void handleShift() {
+        long now = System.currentTimeMillis();
+        if (now - lastShiftClickTime < DOUBLE_TAP_TIMEOUT) {
+            // Double tap - Caps Lock
+            isCapsLock = !isCapsLock;
+            isCaps = isCapsLock;
+        } else {
+            // Single tap
+            if (isCapsLock) {
+                isCapsLock = false;
+                isCaps = false;
+            } else {
+                isCaps = !isCaps;
+            }
+        }
+        lastShiftClickTime = now;
+        qwertyKeyboard.setShifted(isCaps);
+        updateShiftKeyState();
+    }
+
+    private void handleSpace() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastSpaceClickTime < DOUBLE_TAP_TIMEOUT) {
+            // Double tap space - insert period
+            ic.deleteSurroundingText(1, 0);
+            ic.commitText(". ", 1);
+            inputBuffer.setLength(Math.max(0, inputBuffer.length() - 1));
+            inputBuffer.append(". ");
+            checkToxicityAsync(true);
+            
+            // Auto-cap after period
+            isCaps = true;
+            qwertyKeyboard.setShifted(true);
+            updateShiftKeyState();
+        } else {
+            ic.commitText(" ", 1);
+            inputBuffer.append(" ");
+        }
+        lastSpaceClickTime = now;
+    }
+
+    private void updateShiftKeyState() {
+        Keyboard.Key shiftKey = findKeyByCode(Keyboard.KEYCODE_SHIFT);
+        if (shiftKey != null) {
+            if (isCapsLock) {
+                shiftKey.icon = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_shift_caps, null);
+            } else if (isCaps) {
+                shiftKey.icon = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_shift_on, null);
+            } else {
+                shiftKey.icon = ResourcesCompat.getDrawable(getResources(), R.drawable.ic_shift_off, null);
+            }
+        }
+        keyboardView.invalidateAllKeys();
+    }
+
+    private Keyboard.Key findKeyByCode(int code) {
+        for (Keyboard.Key key : keyboardView.getKeyboard().getKeys()) {
+            if (key.codes[0] == code) return key;
+        }
+        return null;
+    }
+
+    private void toggleToxicityClassifier() {
+        boolean isEnabled = prefs.getBoolean(KEY_FILTERING_ENABLED, true);
+        isEnabled = !isEnabled;
+        prefs.edit().putBoolean(KEY_FILTERING_ENABLED, isEnabled).apply();
+        String status = isEnabled ? "Toxicity Classifier Enabled" : "Toxicity Classifier Disabled";
+        Toast.makeText(this, status, Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateClipboardKeyboard() {
+        // Since Keyboard object is somewhat static, we can't easily add keys.
+        // For a true clipboard manager, we'd use a different view, but for now
+        // let's just use the first few slots if they exist.
+        List<Keyboard.Key> keys = clipboardKeyboard.getKeys();
+        for (int i = 0; i < keys.size(); i++) {
+            Keyboard.Key k = keys.get(i);
+            if (k.codes[0] == -2) continue; // Skip back button
+            
+            int clipIndex = i - 1; // Assuming first key is back button
+            if (clipIndex >= 0 && clipIndex < clipboardHistory.size()) {
+                k.label = clipboardHistory.get(clipIndex);
+                // We'll use a special range for clipboard index codes
+                k.codes = new int[]{ -200 - clipIndex }; 
+            } else if (clipIndex >= 0) {
+                k.label = "[Empty]";
+                k.codes = new int[]{ 0 };
+            }
         }
     }
 
@@ -286,8 +479,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             for (String w : wordsInContext) {
                 if (w.isEmpty()) continue;
                 
-                // A word is safe if it's in common words, the user dictionary, or the engine's dictionary
-                boolean isSafe = commonWords.contains(w) || 
+                // A word is recognized if it's in common words, the user dictionary, or the substitution engine
+                boolean isRecognized = commonWords.contains(w) || 
                                 userDictionary.contains(w) || 
                                 substitutionEngine.isKnownWord(w);
 
@@ -296,7 +489,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     containsManualToxic = true;
                 }
                 
-                if (!isSafe) {
+                if (!isRecognized) {
                     containsUnsafeWord = true;
                 }
             }
@@ -304,11 +497,11 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             // Decision Logic:
             // Trigger if:
             // A. An explicitly marked toxic word is present
-            // B. ML model detects toxicity AND there is at least one "unsafe" (unrecognized) word
-            // C. ML probability is high AND it contains keywords AND there's an unsafe word
+            // B. ML model detects toxicity (based on threshold)
+            // C. Keyword match + probability boost
             
             boolean shouldShowAlert = containsManualToxic;
-            if (!shouldShowAlert && containsUnsafeWord) {
+            if (!shouldShowAlert) {
                 if (isToxic) {
                     shouldShowAlert = true;
                 } else if (substitutionEngine.containsToxicLanguage(contextText) && probability > 0.45) {
@@ -317,7 +510,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
 
             if (shouldShowAlert) {
-                mainHandler.post(() -> showToxicAlert(contextText, isEndOfSentence));
+                mainHandler.post(() -> {
+                    updateSafeIndicator(false);
+                    showToxicAlert(contextText, isEndOfSentence);
+                });
                 return;
             }
 
@@ -327,12 +523,25 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 mainHandler.post(() -> showUnrecognizedAlert(lastWord));
             }
 
+            mainHandler.post(() -> updateSafeIndicator(true));
             if (isEndOfSentence) {
                 inputBuffer.setLength(0);
             }
         });
 
         mainHandler.postDelayed(classificationRunnable, 300);
+    }
+
+    private void updateSafeIndicator(boolean isSafe) {
+        if (safeIndicatorDot != null && safeIndicatorText != null) {
+            if (isSafe) {
+                safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_green);
+                safeIndicatorText.setText("Safe to type");
+            } else {
+                safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_red);
+                safeIndicatorText.setText("Toxic language detected");
+            }
+        }
     }
 
     private boolean isUnrecognized(String word) {
@@ -577,7 +786,14 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     @Override
-    public void onPress(int primaryCode) {}
+    public void onPress(int primaryCode) {
+        if (primaryCode != 0) {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(15, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+        }
+    }
 
     @Override
     public void onRelease(int primaryCode) {}

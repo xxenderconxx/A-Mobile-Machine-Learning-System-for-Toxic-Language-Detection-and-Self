@@ -2,4 +2,8 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="keyboard_background">#1A1A1A</color>
+    <color name="key_background_normal">#333333</color>
+    <color name="key_background_pressed">#616161</color>
+    <color name="key_text_color">#FFFFFF</color>
 </resources>

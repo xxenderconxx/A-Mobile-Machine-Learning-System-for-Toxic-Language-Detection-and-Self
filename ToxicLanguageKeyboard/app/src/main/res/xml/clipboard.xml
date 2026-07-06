@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="100%p"
+    android:horizontalGap="0px"
+    android:verticalGap="0px"
+    android:keyHeight="54dp">
+
+    <!-- This will be dynamically populated in code or just a placeholder -->
+    <Row>
+        <Key android:codes="-200" android:keyLabel="[Empty]" />
+        <Key android:codes="-201" android:keyLabel="[Empty]" />
+    </Row>
+    <Row>
+        <Key android:codes="-202" android:keyLabel="[Empty]" />
+        <Key android:codes="-203" android:keyLabel="[Empty]" />
+    </Row>
+    <Row>
+        <Key android:codes="-2" android:keyLabel="Back to Keyboard" android:keyWidth="100%p" android:keyEdgeFlags="left|right" />
+    </Row>
+</Keyboard>

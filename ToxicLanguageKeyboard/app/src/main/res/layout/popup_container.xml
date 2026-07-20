@@ -5,5 +5,5 @@
     android:layout_height="wrap_content"
     android:background="@drawable/popup_background"
     android:keyBackground="@drawable/popup_key_background"
-    android:keyTextColor="@android:color/white"
+    android:keyTextColor="@color/key_text_color"
     android:keyPreviewLayout="@null" />

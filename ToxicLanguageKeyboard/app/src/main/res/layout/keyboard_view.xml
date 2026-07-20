@@ -12,7 +12,7 @@
         android:layout_height="32dp"
         android:gravity="center"
         android:orientation="horizontal"
-        android:background="#252525">
+        android:background="@color/indicator_background">
 
         <View
             android:id="@+id/safe_indicator_dot"
@@ -26,11 +26,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Safe to type"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/indicator_text_color"
             android:textSize="12sp" />
     </LinearLayout>
 
-    <android.inputmethodservice.KeyboardView
+    <com.example.toxiclanguagekeyboard.CustomKeyboardView
         android:id="@+id/keyboard_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

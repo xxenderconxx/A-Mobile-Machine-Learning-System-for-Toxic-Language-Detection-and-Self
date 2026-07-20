@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Limit internet access to only the trusted feedback server -->
+    <!-- Allow Firebase and Google API domains required for Firestore -->
     <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">firebase.com</domain>
+        <domain includeSubdomains="true">firebaseio.com</domain>
         <domain includeSubdomains="true">api.toxic-keyboard-project.org</domain>
     </domain-config>
 </network-security-config>

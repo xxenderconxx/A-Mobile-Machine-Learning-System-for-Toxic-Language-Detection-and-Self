@@ -34,10 +34,15 @@ public class MainActivity extends AppCompatActivity {
     public static final String KEY_COUNT_DETECTIONS = "count_detections";
     public static final String KEY_COUNT_EDITS = "count_edits";
     public static final String KEY_COUNT_IGNORED = "count_ignored";
-    private static final String KEY_USER_DICTIONARY = "user_dictionary";
-    private static final String KEY_TOXIC_FEEDBACK = "toxic_feedback";
-    private static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
+    public static final String KEY_USER_DICTIONARY = "user_dictionary";
+    public static final String KEY_USER_DICTIONARY_HISTORY = "user_dictionary_history";
+    public static final String KEY_TOXIC_FEEDBACK = "toxic_feedback";
+    public static final String KEY_TOXIC_FEEDBACK_HISTORY = "toxic_feedback_history";
+    public static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
+    public static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
     private static final String KEY_LAST_VERSION_CODE = "last_version_code";
+    private static final String KEY_LAST_UPLOAD_TIME = "last_upload_time";
+    private static final long UPLOAD_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     private SharedPreferences prefs;
     private TextView tvStats;
@@ -50,7 +55,8 @@ public class MainActivity extends AppCompatActivity {
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
         if (KEY_COUNT_DETECTIONS.equals(key) || KEY_COUNT_EDITS.equals(key) || KEY_COUNT_IGNORED.equals(key)) {
             updateStatsDisplay();
-        } else if (KEY_TOXIC_FEEDBACK.equals(key) || KEY_FALSE_POSITIVES_FEEDBACK.equals(key)) {
+        } else if (KEY_USER_DICTIONARY.equals(key) || KEY_TOXIC_FEEDBACK.equals(key) || KEY_FALSE_POSITIVES_FEEDBACK.equals(key) ||
+                   KEY_USER_DICTIONARY_HISTORY.equals(key) || KEY_TOXIC_FEEDBACK_HISTORY.equals(key) || KEY_FALSE_POSITIVES_FEEDBACK_HISTORY.equals(key)) {
             updateFeedbackStats();
         }
     };
@@ -125,6 +131,9 @@ public class MainActivity extends AppCompatActivity {
                     .remove(KEY_USER_DICTIONARY)
                     .remove(KEY_TOXIC_FEEDBACK)
                     .remove(KEY_FALSE_POSITIVES_FEEDBACK)
+                    .remove(KEY_USER_DICTIONARY_HISTORY)
+                    .remove(KEY_TOXIC_FEEDBACK_HISTORY)
+                    .remove(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY)
                     .apply();
             
             // Force a refresh of local UI stats
@@ -135,13 +144,26 @@ public class MainActivity extends AppCompatActivity {
         btnExport.setOnClickListener(v -> exportResearchReport());
 
         btnUploadFeedback.setOnClickListener(v -> {
+            // Cooldown check bypassed for testing
+            /*
+            long lastUpload = prefs.getLong(KEY_LAST_UPLOAD_TIME, 0);
+            long currentTime = System.currentTimeMillis();
+
+            if (currentTime - lastUpload < UPLOAD_COOLDOWN_MS) {
+                long hoursLeft = (UPLOAD_COOLDOWN_MS - (currentTime - lastUpload)) / (60 * 60 * 1000);
+                Toast.makeText(this, getString(R.string.upload_cooldown_message, hoursLeft), Toast.LENGTH_LONG).show();
+                return;
+            }
+            */
+
+            java.util.Set<String> safe = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
             java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
             java.util.Set<String> falsePos = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>());
 
-            if (toxic.isEmpty() && falsePos.isEmpty()) {
+            if (safe.isEmpty() && toxic.isEmpty() && falsePos.isEmpty()) {
                 Toast.makeText(this, R.string.no_feedback_data, Toast.LENGTH_SHORT).show();
             } else {
-                showUploadConfirmationDialog(toxic, falsePos);
+                showUploadConfirmationDialog(safe, toxic, falsePos);
             }
         });
 
@@ -231,47 +253,79 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    private void showUploadConfirmationDialog(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
+    private void showUploadConfirmationDialog(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.upload_confirmation_title)
                 .setMessage(R.string.upload_confirmation_message)
-                .setPositiveButton(R.string.btn_allow_and_upload, (dialog, which) -> performUpload(toxic, falsePos))
+                .setPositiveButton(R.string.btn_allow_and_upload, (dialog, which) -> performUpload(safe, toxic, falsePos))
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 
-    private void performUpload(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
+    private void performUpload(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
         if (!isNetworkAvailable()) {
             Toast.makeText(this, "No internet connection available.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // This method acts as the "Internet Gate".
-        // Code here would initiate network communication only after explicit user consent.
-        
-        JSONObject payload = createUploadPayload(toxic, falsePos);
+        JSONObject payload = createUploadPayload(safe, toxic, falsePos);
         android.util.Log.d("ToxicKeyboard", "Payload prepared: " + payload);
 
         Toast.makeText(this, "Connecting to secure server...", Toast.LENGTH_SHORT).show();
 
-        // Simulate network upload
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-            // TODO: In a production app, data would be sent to the server here using HttpsURLConnection.
-            // Example structure:
-            // URL url = new URL("https://api.example.com/keyboard/feedback");
-            // HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-            // conn.setRequestMethod("POST");
-            // conn.setRequestProperty("Content-Type", "application/json; utf-8");
-            // ... send payload.toString() ...
+        // Use Firestore to upload the bulk payload as a single contribution document
+        try {
+            com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+            data.put("safe_words", new java.util.ArrayList<>(safe));
+            data.put("toxic_words", new java.util.ArrayList<>(toxic));
+            data.put("false_positives", new java.util.ArrayList<>(falsePos));
             
-            // As per user request, we KEEP the local feedback data after upload 
-            // so the keyboard continues to respect user refinements (Safe/Toxic flags).
-            // This data will only be reset when the app is updated to a new version.
-            
-            Toast.makeText(this, R.string.feedback_uploaded, Toast.LENGTH_LONG).show();
-            Toast.makeText(this, "Data preserved for local consistency.", Toast.LENGTH_SHORT).show();
-            Toast.makeText(this, "Internet access revoked.", Toast.LENGTH_SHORT).show();
-        }, 2000);
+            String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+            int userIdHash = androidId != null ? androidId.hashCode() : 0;
+            String docId = String.valueOf(userIdHash);
+            data.put("userId", userIdHash);
+
+            db.collection("contributions")
+                    .document(docId)
+                    .set(data)
+                    .addOnSuccessListener(documentReference -> {
+                        movePendingToHistory(safe, toxic, falsePos);
+                        prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, System.currentTimeMillis()).apply();
+                        Toast.makeText(this, R.string.feedback_uploaded, Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Internet access revoked.", Toast.LENGTH_SHORT).show();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    });
+        } catch (Exception e) {
+            Toast.makeText(this, "Firebase error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void movePendingToHistory(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
+        SharedPreferences.Editor editor = prefs.edit();
+        
+        // 1. Update History Sets
+        addToHistory(editor, KEY_USER_DICTIONARY_HISTORY, safe);
+        addToHistory(editor, KEY_TOXIC_FEEDBACK_HISTORY, toxic);
+        addToHistory(editor, KEY_FALSE_POSITIVES_FEEDBACK_HISTORY, falsePos);
+        
+        // 2. Clear Pending Sets
+        editor.remove(KEY_USER_DICTIONARY);
+        editor.remove(KEY_TOXIC_FEEDBACK);
+        editor.remove(KEY_FALSE_POSITIVES_FEEDBACK);
+        
+        editor.apply();
+        updateFeedbackStats();
+    }
+
+    private void addToHistory(SharedPreferences.Editor editor, String key, java.util.Set<String> newItems) {
+        if (newItems == null || newItems.isEmpty()) return;
+        java.util.Set<String> history = new java.util.HashSet<>(prefs.getStringSet(key, new java.util.HashSet<>()));
+        history.addAll(newItems);
+        editor.putStringSet(key, history);
     }
 
     private boolean isNetworkAvailable() {
@@ -284,12 +338,18 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    private JSONObject createUploadPayload(java.util.Set<String> toxic, java.util.Set<String> falsePos) {
+    private JSONObject createUploadPayload(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
         JSONObject payload = new JSONObject();
         try {
             payload.put("version_code", BuildConfig.VERSION_CODE);
             payload.put("timestamp", System.currentTimeMillis());
             
+            JSONArray safeArray = new JSONArray();
+            for (String s : safe) {
+                safeArray.put(s);
+            }
+            payload.put("safe_words", safeArray);
+
             JSONArray toxicArray = new JSONArray();
             for (String s : toxic) {
                 toxicArray.put(s);
@@ -318,6 +378,9 @@ public class MainActivity extends AppCompatActivity {
                     .remove(KEY_USER_DICTIONARY)
                     .remove(KEY_TOXIC_FEEDBACK)
                     .remove(KEY_FALSE_POSITIVES_FEEDBACK)
+                    .remove(KEY_USER_DICTIONARY_HISTORY)
+                    .remove(KEY_TOXIC_FEEDBACK_HISTORY)
+                    .remove(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY)
                     .putInt(KEY_LAST_VERSION_CODE, currentVersion)
                     .apply();
             
@@ -344,9 +407,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateFeedbackStats() {
+        java.util.Set<String> safe = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
         java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
         java.util.Set<String> falsePos = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>());
-        tvFeedbackStats.setText(getString(R.string.feedback_stats_format, toxic.size(), falsePos.size()));
+        
+        java.util.Set<String> safeHistory = prefs.getStringSet(KEY_USER_DICTIONARY_HISTORY, new java.util.HashSet<>());
+        java.util.Set<String> toxicHistory = prefs.getStringSet(KEY_TOXIC_FEEDBACK_HISTORY, new java.util.HashSet<>());
+        java.util.Set<String> falsePosHistory = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY, new java.util.HashSet<>());
+
+        int totalSafe = safe.size() + safeHistory.size();
+        int totalToxic = toxic.size() + toxicHistory.size();
+        int totalFP = falsePos.size() + falsePosHistory.size();
+
+        String pendingText = getString(R.string.feedback_stats_format, safe.size(), toxic.size(), falsePos.size());
+        String totalText = getString(R.string.feedback_stats_total, totalSafe, totalToxic, totalFP);
+        
+        tvFeedbackStats.setText(pendingText + "\n" + totalText);
     }
 
     @Override

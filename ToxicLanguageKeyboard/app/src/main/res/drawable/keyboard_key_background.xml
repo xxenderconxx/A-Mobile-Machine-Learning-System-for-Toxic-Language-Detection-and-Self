@@ -1,15 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Pressed state: Tonal shift to signify selection -->
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/key_background_pressed" />
-            <corners android:radius="28dp" />
+            <corners android:radius="4dp" />
         </shape>
     </item>
+    <!-- Normal state: Subtle "key" with a shadow-like bottom stroke -->
     <item>
-        <shape android:shape="rectangle">
-            <solid android:color="@color/key_background_normal" />
-            <corners android:radius="28dp" />
-        </shape>
+        <layer-list>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="#1F000000" />
+                    <corners android:radius="4dp" />
+                </shape>
+            </item>
+            <item android:bottom="1.5dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/key_background_normal" />
+                    <corners android:radius="4dp" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
 </selector>

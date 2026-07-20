@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="keyboard_background">#1A1A1A</color>
+    <color name="key_background_normal">#333333</color>
+    <color name="key_background_pressed">#616161</color>
+    <color name="key_text_color">#FFFFFF</color>
+    <color name="indicator_background">#252525</color>
+    <color name="indicator_text_color">#FFFFFF</color>
+    <color name="icon_color">#FFFFFF</color>
+
+    <!-- Dialog Colors (Dark) -->
+    <color name="dialog_background">#2C2C2C</color>
+    <color name="dialog_stroke">#404040</color>
+    <color name="dialog_text_primary">#F5F5F5</color>
+    <color name="dialog_text_secondary">#B0B0B0</color>
+    <color name="dialog_divider">#3D3D3D</color>
+    <color name="color_warning">#FFB74D</color>
+    <color name="color_error">#EF5350</color>
+    <color name="color_success">#81C784</color>
+    <color name="color_info">#64B5F6</color>
+</resources>

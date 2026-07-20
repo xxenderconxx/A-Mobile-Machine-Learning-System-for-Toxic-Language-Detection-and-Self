@@ -28,8 +28,13 @@ import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import android.provider.Settings;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FieldValue;
 
 public class ToxicKeyboardService extends InputMethodService implements KeyboardView.OnKeyboardActionListener {
 
@@ -61,17 +66,23 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private WindowManager overlayWindowManager;
     private Context windowContext;
     private java.util.Set<String> commonWords;
+    private java.util.Set<String> commonSkeletons;
+    private java.util.Set<String> toxicSkeletons = new java.util.HashSet<>();
+    private java.util.Set<String> userSkeletons = new java.util.HashSet<>();
     private java.util.Set<String> userDictionary;
     private java.util.Set<String> toxicFeedbackSet;
     private java.util.Set<String> falsePositivesSet;
     private static final String PREFS_NAME = "ToxicKeyboardPrefs";
     private static final String KEY_USER_DICTIONARY = "user_dictionary";
+    private static final String KEY_USER_DICTIONARY_HISTORY = "user_dictionary_history";
     private static final String KEY_FILTERING_ENABLED = "filtering_enabled";
     private static final String KEY_COUNT_DETECTIONS = "count_detections";
     private static final String KEY_COUNT_EDITS = "count_edits";
     private static final String KEY_COUNT_IGNORED = "count_ignored";
     private static final String KEY_TOXIC_FEEDBACK = "toxic_feedback";
+    private static final String KEY_TOXIC_FEEDBACK_HISTORY = "toxic_feedback_history";
     private static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
+    private static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
 
     @Override
     public void onCreate() {
@@ -143,33 +154,52 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
-        if (KEY_USER_DICTIONARY.equals(key)) {
+        if (KEY_USER_DICTIONARY.equals(key) || KEY_USER_DICTIONARY_HISTORY.equals(key)) {
             loadUserDictionary();
-        } else if (KEY_TOXIC_FEEDBACK.equals(key)) {
+        } else if (KEY_TOXIC_FEEDBACK.equals(key) || KEY_TOXIC_FEEDBACK_HISTORY.equals(key)) {
             loadToxicFeedback();
-        } else if (KEY_FALSE_POSITIVES_FEEDBACK.equals(key)) {
+        } else if (KEY_FALSE_POSITIVES_FEEDBACK.equals(key) || KEY_FALSE_POSITIVES_FEEDBACK_HISTORY.equals(key)) {
             loadFalsePositives();
         }
     };
 
     private void loadUserDictionary() {
-        java.util.Set<String> savedWords = encryptedPrefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
-        // Create a copy to avoid mutating the set returned by SharedPreferences
-        userDictionary = new java.util.HashSet<>(savedWords);
+        java.util.Set<String> pending = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
+        java.util.Set<String> history = prefs.getStringSet(KEY_USER_DICTIONARY_HISTORY, new java.util.HashSet<>());
+        userDictionary = new java.util.HashSet<>(pending);
+        userDictionary.addAll(history);
+        
+        userSkeletons.clear();
+        for (String w : userDictionary) {
+            userSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
+        }
     }
 
     private void loadToxicFeedback() {
-        java.util.Set<String> savedToxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
-        toxicFeedbackSet = new java.util.HashSet<>(savedToxic);
+        java.util.Set<String> pending = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
+        java.util.Set<String> history = prefs.getStringSet(KEY_TOXIC_FEEDBACK_HISTORY, new java.util.HashSet<>());
+        toxicFeedbackSet = new java.util.HashSet<>(pending);
+        toxicFeedbackSet.addAll(history);
+
+        toxicSkeletons.clear();
+        for (String w : toxicFeedbackSet) {
+            toxicSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
+        }
+        
+        if (substitutionEngine != null) {
+            substitutionEngine.setDynamicToxicWords(toxicFeedbackSet);
+        }
     }
 
     private void loadFalsePositives() {
-        java.util.Set<String> savedFP = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>());
-        falsePositivesSet = new java.util.HashSet<>(savedFP);
+        java.util.Set<String> pending = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>());
+        java.util.Set<String> history = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY, new java.util.HashSet<>());
+        falsePositivesSet = new java.util.HashSet<>(pending);
+        falsePositivesSet.addAll(history);
     }
 
     private void initializeCommonWords() {
-        commonWords = new java.util.HashSet<>(java.util.Arrays.asList(
+        java.util.List<String> words = java.util.Arrays.asList(
             "a", "about", "above", "across", "after", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "an", "and", "another", "any", "anybody", "anyone", "anything", "anywhere", "are", "area", "around", "as", "ask", "at", "away",
             "back", "be", "became", "because", "become", "becomes", "been", "before", "began", "begin", "behind", "being", "below", "beside", "best", "better", "between", "big", "both", "boy", "but", "by",
             "call", "came", "can", "cannot", "can't", "car", "certain", "change", "child", "children", "city", "close", "come", "could", "couldn't", "country", "course", "cut",
@@ -193,7 +223,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             "very",
             "walk", "want", "was", "wasn't", "water", "way", "we", "well", "went", "were", "weren't", "what", "what's", "when", "where", "whether", "which", "while", "white", "who", "whole", "whom", "whose", "why", "will", "with", "within", "without", "word", "work", "world", "would", "wouldn't", "write",
             "year", "yet", "you", "young", "your", "yours", "yourself", "yourselves", "you're",
-            "hi", "hello", "please", "sorry", "yes", "ok", "okay", "yeah", "thanks", "welcome", "howdy", "goodbye", "bye", "test", "testing", "message", "type", "keyboard", "input",
+            "hi", "hello", "hey", "heyy", "heya", "yo", "sup", "please", "sorry", "yes", "ok", "okay", "yeah", "yep", "yup", "thanks", "welcome", "howdy", "goodbye", "bye", "test", "testing", "message", "type", "keyboard", "input",
             "today", "tomorrow", "yesterday", "morning", "afternoon", "evening", "night", "week", "month", "year", "time", "hour", "minute", "second",
             "happy", "sad", "angry", "excited", "bored", "tired", "hungry", "thirsty", "good", "bad", "better", "best", "worse", "worst",
             "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "gray", "grey",
@@ -215,7 +245,13 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             "consider", "considered", "appear", "appeared", "buy", "bought", "wait", "waited", "serve", "served", "die", "died",
             "send", "sent", "expect", "expected", "build", "built", "stay", "stayed", "fall", "fell", "fallen", "cut",
             "reach", "reached", "kill", "killed", "remain", "remained"
-        ));
+        );
+        
+        commonWords = new java.util.HashSet<>(words);
+        commonSkeletons = new java.util.HashSet<>();
+        for (String w : words) {
+            commonSkeletons.add(w.replaceAll("(.)\\1+", "$1"));
+        }
     }
 
     @Override
@@ -281,7 +317,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     @Override
     public void onKey(int primaryCode, int[] keyCodes) {
-        android.util.Log.d("ToxicKeyboard", "onKey: " + primaryCode);
         InputConnection ic = getCurrentInputConnection();
         if (ic == null) return;
 
@@ -458,13 +493,29 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (contextText.trim().isEmpty()) return;
 
         classificationRunnable = () -> executorService.execute(() -> {
-            Log.d("ToxicKeyboard", "Inference on: [" + contextText + "]");
+            if (BuildConfig.DEBUG) {
+                Log.d("ToxicKeyboard", "Inference on context");
+            }
 
             // Normalize context for false positive check (remove punctuation)
             String cleanContext = contextText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
+            
+            // 0. CHECK SUBSTITUTION ENGINE FOR WHITELISTED PHRASES FIRST
+            // This ensures that phrases like "wow that is so big" aren't even processed by the ML model.
+            if (substitutionEngine.isLoaded()) {
+                // We'll add a method to check if the context is explicitly whitelisted
+                if (isWhitelistedInEngine(contextText)) {
+                    Log.d("ToxicKeyboard", "Skipping alert: Explicitly whitelisted in substitutions.json");
+                    if (isEndOfSentence) inputBuffer.setLength(0);
+                    mainHandler.post(() -> updateSafeIndicator(true));
+                    return;
+                }
+            }
+
             if (falsePositivesSet.contains(cleanContext)) {
                 Log.d("ToxicKeyboard", "Skipping alert: Known false positive");
                 if (isEndOfSentence) inputBuffer.setLength(0);
+                mainHandler.post(() -> updateSafeIndicator(true));
                 return;
             }
             
@@ -473,24 +524,14 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
             // 1. Scan context for manual overrides and safe words
             boolean containsManualToxic = false;
-            boolean containsUnsafeWord = false;
             String[] wordsInContext = cleanContext.split("\\s+");
             
             for (String w : wordsInContext) {
                 if (w.isEmpty()) continue;
                 
-                // A word is recognized if it's in common words, the user dictionary, or the substitution engine
-                boolean isRecognized = commonWords.contains(w) || 
-                                userDictionary.contains(w) || 
-                                substitutionEngine.isKnownWord(w);
-
                 // Check manual toxic flags (unless whitelisted)
-                if (toxicFeedbackSet.contains(w) && !userDictionary.contains(w)) {
+                if (isToxicResilient(w) && !userDictionary.contains(w)) {
                     containsManualToxic = true;
-                }
-                
-                if (!isRecognized) {
-                    containsUnsafeWord = true;
                 }
             }
 
@@ -532,27 +573,68 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         mainHandler.postDelayed(classificationRunnable, 300);
     }
 
+    private boolean isWhitelistedInEngine(String text) {
+        return substitutionEngine.isWhitelistedPhrase(text);
+    }
+
     private void updateSafeIndicator(boolean isSafe) {
         if (safeIndicatorDot != null && safeIndicatorText != null) {
-            if (isSafe) {
-                safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_green);
-                safeIndicatorText.setText("Safe to type");
-            } else {
-                safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_red);
-                safeIndicatorText.setText("Toxic language detected");
-            }
+            mainHandler.post(() -> {
+                if (isSafe) {
+                    safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_green);
+                    safeIndicatorText.setText("Safe to type");
+                } else {
+                    safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_red);
+                    safeIndicatorText.setText("Toxic language detected");
+                }
+            });
         }
     }
 
     private boolean isUnrecognized(String word) {
         if (word.length() <= 2) return false;
         
-        if (substitutionEngine.isKnownWord(word)) return false;
+        String lower = word.toLowerCase();
         
-        // If it's in common words, user-added safe words, or already flagged toxic, don't prompt
-        return !commonWords.contains(word) && 
-               !userDictionary.contains(word) && 
-               !toxicFeedbackSet.contains(word);
+        // 1. Check for exact or normalized match in safe dictionaries
+        if (isKnownResilient(lower)) return false;
+        
+        // 2. If it matches a toxic word's skeleton, we don't prompt "unrecognized"
+        // because the toxicity alert will handle it.
+        if (isToxicResilient(lower)) return false;
+
+        return true;
+    }
+
+    private boolean isKnownResilient(String word) {
+        if (word == null || word.isEmpty()) return true;
+        String lower = word.toLowerCase().trim();
+        
+        // 1. Exact matches first
+        if (commonWords.contains(lower) || userDictionary.contains(lower)) return true;
+        if (substitutionEngine.isKnownWord(lower)) return true;
+
+        // 2. Skeleton match: "heyyy" -> "hey"
+        String skeleton = lower.replaceAll("(.)\\1+", "$1");
+        
+        // Check pre-calculated common skeletons
+        if (commonSkeletons != null && commonSkeletons.contains(skeleton)) return true;
+        
+        // Check user dictionary skeletons
+        if (userSkeletons.contains(skeleton)) return true;
+
+        return false;
+    }
+
+    private boolean isToxicResilient(String word) {
+        if (word == null || word.isEmpty()) return false;
+        String lower = word.toLowerCase().trim();
+        if (toxicFeedbackSet.contains(lower)) return true;
+        
+        String skeleton = lower.replaceAll("(.)\\1+", "$1");
+        if (toxicSkeletons.contains(skeleton)) return true;
+        
+        return substitutionEngine.isToxicWord(lower);
     }
 
     private WindowManager getOverlayWindowManager() {
@@ -626,6 +708,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             String cleanWord = word.toLowerCase().replaceAll("[^a-z']", "");
             userDictionary.add(cleanWord);
             prefs.edit().putStringSet(KEY_USER_DICTIONARY, userDictionary).apply();
+            uploadToFirebase(cleanWord, "safe", "unrecognized_prompt");
             Toast.makeText(this, R.string.toast_word_marked_safe, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -636,6 +719,11 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             java.util.Set<String> toxicFeedback = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
             toxicFeedback.add(cleanWord);
             prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, toxicFeedback).apply();
+            
+            // Immediately update the engine
+            loadToxicFeedback();
+
+            uploadToFirebase(cleanWord, "toxic", "unrecognized_prompt");
             Toast.makeText(this, R.string.toast_word_marked_toxic, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -765,6 +853,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
             editor.apply();
 
+            uploadToFirebase(cleanContext, "safe", "false_positive_report");
             Toast.makeText(this, R.string.toast_false_positive_reported, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -782,6 +871,9 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         executorService.shutdown();
         if (prefs != null) {
             prefs.unregisterOnSharedPreferenceChangeListener(prefListener);
+        }
+        if (clipboardManager != null) {
+            clipboardManager.removePrimaryClipChangedListener(this::onClipboardChanged);
         }
     }
 
@@ -812,4 +904,38 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     @Override
     public void swipeUp() {}
+
+    /**
+     * Modernized cursor control: moves the cursor forward or backward
+     * triggered by horizontal swipes on the keyboard view.
+     */
+    public void onCursorMove(boolean forward) {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            int keyCode = forward ? android.view.KeyEvent.KEYCODE_DPAD_RIGHT : android.view.KeyEvent.KEYCODE_DPAD_LEFT;
+            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode));
+            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode));
+        }
+    }
+
+    private void uploadToFirebase(String text, String label, String type) {
+        try {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            Map<String, Object> data = new HashMap<>();
+            data.put("text", text);
+            data.put("label", label); // "safe" or "toxic"
+            data.put("type", type);   // "unrecognized_prompt" or "false_positive_report"
+            data.put("timestamp", FieldValue.serverTimestamp());
+            // Use hash of Android ID for anonymous but consistent user tracking
+            String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+            data.put("userId", androidId != null ? androidId.hashCode() : 0);
+
+            db.collection("feedback")
+                    .add(data)
+                    .addOnFailureListener(e -> Log.e("ToxicKeyboard", "Upload failed", e));
+        } catch (Exception e) {
+            // This might happen if google-services.json is missing or Firebase not initialized
+            Log.e("ToxicKeyboard", "Firebase upload error: " + e.getMessage());
+        }
+    }
 }

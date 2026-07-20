@@ -2,8 +2,33 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="keyboard_background">#1A1A1A</color>
-    <color name="key_background_normal">#333333</color>
-    <color name="key_background_pressed">#616161</color>
-    <color name="key_text_color">#FFFFFF</color>
+
+    <!-- Modern Material 3 Tonal Palette -->
+    <color name="keyboard_background">#F3F3F7</color> <!-- Surface Container -->
+    <color name="key_background_normal">#FEF7FF</color> <!-- Surface Bright -->
+    <color name="key_background_pressed">#E6E0E9</color> <!-- Surface Variant -->
+    <color name="key_text_color">#1C1B1F</color> <!-- On Surface -->
+
+    <color name="indicator_background">#EDF1F9</color>
+    <color name="indicator_text_color">#44474E</color>
+
+    <!-- Accent Colors -->
+    <color name="color_primary">#6750A4</color>
+    <color name="color_secondary">#625B71</color>
+
+    <!-- Status Colors -->
+    <color name="color_success">#2E7D32</color>
+    <color name="color_error">#B3261E</color>
+    <color name="color_warning">#924900</color>
+
+    <!-- Dialog Colors -->
+    <color name="dialog_background">#FFFFFF</color>
+    <color name="dialog_stroke">#CAC4D0</color>
+    <color name="dialog_text_primary">#1C1B1F</color>
+    <color name="dialog_text_secondary">#49454F</color>
+    <color name="dialog_divider">#CAC4D0</color>
+
+    <!-- Additional UI Colors -->
+    <color name="icon_color">#49454F</color>
+    <color name="color_info">#2196F3</color>
 </resources>

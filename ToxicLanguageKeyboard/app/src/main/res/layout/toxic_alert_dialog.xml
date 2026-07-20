@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Wait! Think before you post."
-        android:textColor="#D32F2F"
+        android:textColor="@color/color_error"
         android:textSize="20sp"
         android:textStyle="bold"
         android:gravity="center" />
@@ -19,7 +19,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#EEEEEE"
+        android:background="@color/dialog_divider"
         android:layout_marginTop="12dp"
         android:layout_marginBottom="12dp" />
 
@@ -28,7 +28,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Detected: ..."
-        android:textColor="#333333"
+        android:textColor="@color/dialog_text_primary"
         android:textSize="15sp"
         android:lineSpacingExtra="4dp" />
 
@@ -43,8 +43,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="USE SUGGESTED FIX"
-            android:backgroundTint="#4CAF50"
-            android:textColor="#FFFFFF"
+            android:backgroundTint="@color/color_success"
+            android:textColor="@android:color/white"
             android:textStyle="bold" />
 
         <Button
@@ -53,7 +53,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/btn_proceed"
-            android:textColor="#757575"
+            android:textColor="@color/dialog_text_secondary"
             style="?android:attr/borderlessButtonStyle" />
 
         <Button
@@ -62,7 +62,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="@string/btn_false_positive"
-            android:textColor="#1976D2"
+            android:textColor="@color/color_info"
             style="?android:attr/borderlessButtonStyle" />
     </LinearLayout>
 </LinearLayout>

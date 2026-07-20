@@ -44,9 +44,9 @@
 
     <Row>
         <Key android:codes="-2" android:keyLabel="123" android:keyWidth="13%p" android:horizontalGap="1%p" android:keyEdgeFlags="left" />
+        <Key android:codes="44" android:keyLabel="," android:keyWidth="10%p" android:popupKeyboard="@xml/popup_settings" />
         <Key android:codes="-100" android:keyIcon="@drawable/ic_emoji" android:keyWidth="10%p" />
-        <Key android:codes="-102" android:keyIcon="@drawable/ic_settings" android:keyWidth="10%p" />
-        <Key android:codes="32" android:keyIcon="@drawable/ic_space_bar" android:keyWidth="30%p" android:isRepeatable="true" />
+        <Key android:codes="32" android:keyIcon="@drawable/ic_space_bar" android:keyWidth="27.5%p" android:isRepeatable="true" />
         <Key android:codes="-101" android:keyLabel="CLIP" android:keyWidth="10%p" />
         <Key android:codes="46" android:keyLabel="." android:keyWidth="10%p" />
         <Key android:codes="10" android:keyIcon="@drawable/ic_enter" android:keyWidth="11%p" android:keyEdgeFlags="right" />

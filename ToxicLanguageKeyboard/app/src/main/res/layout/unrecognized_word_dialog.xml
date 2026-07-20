@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Unrecognized Vocabulary"
-        android:textColor="#F57C00"
+        android:textColor="@color/color_warning"
         android:textSize="18sp"
         android:textStyle="bold"
         android:gravity="center" />
@@ -18,7 +18,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#EEEEEE"
+        android:background="@color/dialog_divider"
         android:layout_marginTop="12dp"
         android:layout_marginBottom="12dp" />
 
@@ -27,7 +27,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="The word '...' was not found in our dictionary. Would you like to proceed or edit?"
-        android:textColor="#333333"
+        android:textColor="@color/dialog_text_primary"
         android:textSize="14sp" />
 
     <LinearLayout
@@ -44,7 +44,7 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="Ignore"
-            android:textColor="#757575" />
+            android:textColor="@color/dialog_text_secondary" />
 
         <Button
             android:id="@+id/btn_add_to_dictionary"
@@ -53,7 +53,7 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="@string/btn_add"
-            android:textColor="#4CAF50" />
+            android:textColor="@color/color_success" />
 
         <Button
             android:id="@+id/btn_mark_toxic"
@@ -62,7 +62,7 @@
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="@string/btn_mark_toxic"
-            android:textColor="#D32F2F" />
+            android:textColor="@color/color_error" />
 
         <Button
             android:id="@+id/btn_edit_word"
@@ -70,7 +70,7 @@
             android:layout_weight="1.2"
             android:layout_height="wrap_content"
             android:text="@string/btn_edit_word"
-            android:backgroundTint="#F57C00"
-            android:textColor="#FFFFFF" />
+            android:backgroundTint="@color/color_warning"
+            android:textColor="@android:color/white" />
     </LinearLayout>
 </LinearLayout>

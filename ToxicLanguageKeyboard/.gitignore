@@ -1,15 +1,28 @@
+# Android Studio / IntelliJ temp files
+.gradle/
+.idea/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+*.iws
+*.ipr
+
+# Secrets & Local Config (KEEP THESE IGNORED)
 local.properties
+google-services.json
+.aiexclude
+
+# Signing files (KEEP THESE IGNORED)
+*.jks
+*.keystore
+*.p12
+*.properties
+
+# System files
+.DS_Store
+Thumbs.db
+
+# NOTE: firestore.rules and storage.rules are NOT ignored
+# so you can track your security logic changes in Git.

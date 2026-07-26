@@ -26,32 +26,13 @@ public class CustomKeyboardView extends KeyboardView {
 
     @Override
     public boolean onTouchEvent(MotionEvent me) {
-        float x = me.getX();
-
         switch (me.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                lastX = x;
                 // Instant mechanical haptic feedback
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 
                 if (handleBack()) {
                     return true; 
-                }
-                break;
-
-            case MotionEvent.ACTION_MOVE:
-                float deltaX = x - lastX;
-                if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-                    // Trigger horizontal cursor movement
-                    OnKeyboardActionListener listener = getOnKeyboardActionListener();
-                    if (listener instanceof ToxicKeyboardService) {
-                        ((ToxicKeyboardService) listener).onCursorMove(deltaX > 0);
-                        lastX = x; // Reset for continuous sliding
-                        
-                        // Subtle tactile tick for each character moved
-                        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
-                        return true; // Consume to prevent key ghosting during swipe
-                    }
                 }
                 break;
 

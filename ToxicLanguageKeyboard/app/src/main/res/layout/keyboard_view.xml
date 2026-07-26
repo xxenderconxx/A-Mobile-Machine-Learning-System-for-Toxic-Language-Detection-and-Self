@@ -40,4 +40,9 @@
         android:background="@color/keyboard_background"
         android:popupLayout="@layout/popup_container" />
 
+    <include
+        android:id="@+id/emoji_panel"
+        layout="@layout/emoji_panel"
+        android:visibility="gone" />
+
 </LinearLayout>

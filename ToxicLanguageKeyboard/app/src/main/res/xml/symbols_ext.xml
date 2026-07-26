@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="8.5%p"
+    android:horizontalGap="1.5%p"
+    android:verticalGap="10dp"
+    android:keyHeight="56dp">
+
+    <!-- Top Row: ~, `, |, •, √, π, ÷, ×, §, Δ -->
+    <Row>
+        <Key android:codes="126" android:keyLabel="~" android:keyEdgeFlags="left" />
+        <Key android:codes="96" android:keyLabel="`" />
+        <Key android:codes="124" android:keyLabel="|" />
+        <Key android:codes="8226" android:keyLabel="•" />
+        <Key android:codes="8730" android:keyLabel="√" />
+        <Key android:codes="960" android:keyLabel="π" />
+        <Key android:codes="247" android:keyLabel="÷" />
+        <Key android:codes="215" android:keyLabel="×" />
+        <Key android:codes="167" android:keyLabel="§" />
+        <Key android:codes="916" android:keyLabel="Δ" android:keyEdgeFlags="right" />
+    </Row>
+
+    <!-- Second Row: £, ¢, €, ¥, ^, °, =, {, }, \ -->
+    <Row>
+        <Key android:codes="163" android:keyLabel="£" android:keyEdgeFlags="left" />
+        <Key android:codes="162" android:keyLabel="¢" />
+        <Key android:codes="8364" android:keyLabel="€" />
+        <Key android:codes="165" android:keyLabel="¥" />
+        <Key android:codes="94" android:keyLabel="^" />
+        <Key android:codes="176" android:keyLabel="°" />
+        <Key android:codes="61" android:keyLabel="=" />
+        <Key android:codes="123" android:keyLabel="{" />
+        <Key android:codes="125" android:keyLabel="}" />
+        <Key android:codes="92" android:keyLabel="\" android:keyEdgeFlags="right" />
+    </Row>
+
+    <!-- Third Row: ?123, %, ©, ®, ™, ✓, [, ], Backspace -->
+    <Row>
+        <Key android:codes="-2" android:keyLabel="\?123" android:keyWidth="12%p" android:keyEdgeFlags="left" />
+        <Key android:codes="37" android:keyLabel="%" android:horizontalGap="2%p" />
+        <Key android:codes="169" android:keyLabel="©" />
+        <Key android:codes="174" android:keyLabel="®" />
+        <Key android:codes="8482" android:keyLabel="™" />
+        <Key android:codes="10003" android:keyLabel="✓" />
+        <Key android:codes="91" android:keyLabel="[" />
+        <Key android:codes="93" android:keyLabel="]" />
+        <Key android:codes="-5" android:keyIcon="@drawable/ic_backspace" android:keyWidth="15%p" android:isRepeatable="true" android:keyEdgeFlags="right" />
+    </Row>
+
+    <!-- Nav Row: ABC, <, 12 34, >, Enter -->
+    <Row>
+        <Key android:codes="-2" android:keyLabel="ABC" android:keyWidth="20%p" android:keyEdgeFlags="left" />
+        <Key android:codes="60" android:keyLabel="&lt;" android:keyWidth="15%p" />
+        <Key android:codes="-3" android:keyLabel="12 34" android:keyWidth="30%p" />
+        <Key android:codes="62" android:keyLabel="&gt;" android:keyWidth="15%p" />
+        <Key android:codes="10" android:keyIcon="@drawable/ic_enter" android:keyWidth="20%p" android:keyEdgeFlags="right" />
+    </Row>
+
+</Keyboard>

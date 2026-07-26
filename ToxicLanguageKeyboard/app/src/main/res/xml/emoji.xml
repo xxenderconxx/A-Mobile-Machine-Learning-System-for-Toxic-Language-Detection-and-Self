@@ -32,6 +32,32 @@
     </Row>
 
     <Row>
+        <Key android:codes="128532" android:keyLabel="😔" android:keyEdgeFlags="left" />
+        <Key android:codes="128533" android:keyLabel="😕" />
+        <Key android:codes="128534" android:keyLabel="😖" />
+        <Key android:codes="128535" android:keyLabel="😗" />
+        <Key android:codes="128536" android:keyLabel="😘" />
+        <Key android:codes="128537" android:keyLabel="😙" />
+        <Key android:codes="128538" android:keyLabel="😚" />
+        <Key android:codes="128539" android:keyLabel="😛" />
+        <Key android:codes="128540" android:keyLabel="😜" />
+        <Key android:codes="128541" android:keyLabel="😝" android:keyEdgeFlags="right" />
+    </Row>
+
+    <Row>
+        <Key android:codes="128542" android:keyLabel="😞" android:keyEdgeFlags="left" />
+        <Key android:codes="128543" android:keyLabel="😟" />
+        <Key android:codes="128544" android:keyLabel="😠" />
+        <Key android:codes="128545" android:keyLabel="😡" />
+        <Key android:codes="128546" android:keyLabel="😢" />
+        <Key android:codes="128547" android:keyLabel="😣" />
+        <Key android:codes="128548" android:keyLabel="😤" />
+        <Key android:codes="128549" android:keyLabel="😥" />
+        <Key android:codes="128550" android:keyLabel="😦" />
+        <Key android:codes="128551" android:keyLabel="😧" android:keyEdgeFlags="right" />
+    </Row>
+
+    <Row>
         <Key android:codes="-2" android:keyLabel="ABC" android:keyWidth="13%p" android:horizontalGap="1%p" android:keyEdgeFlags="left" />
         <Key android:codes="128077" android:keyLabel="👍" android:keyWidth="10%p" />
         <Key android:codes="128078" android:keyLabel="👎" android:keyWidth="10%p" />

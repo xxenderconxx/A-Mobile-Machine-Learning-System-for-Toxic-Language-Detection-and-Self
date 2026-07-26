@@ -2,8 +2,8 @@
 <Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
     android:keyWidth="45dp"
     android:keyHeight="50dp"
-    android:horizontalGap="2dp"
-    android:verticalGap="2dp">
+    android:horizontalGap="4dp"
+    android:verticalGap="4dp">
     <Row>
         <Key android:codes="49" android:keyLabel="1" />
         <Key android:codes="224" android:keyLabel="à" />

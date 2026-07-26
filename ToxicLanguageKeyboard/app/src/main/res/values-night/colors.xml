@@ -4,9 +4,9 @@
     <color name="key_background_normal">#333333</color>
     <color name="key_background_pressed">#616161</color>
     <color name="key_text_color">#FFFFFF</color>
-    <color name="indicator_background">#252525</color>
-    <color name="indicator_text_color">#FFFFFF</color>
-    <color name="icon_color">#FFFFFF</color>
+    <color name="indicator_background">#1E1E1E</color>
+    <color name="indicator_text_color">#E1E1E1</color>
+    <color name="icon_color">#A0A0A0</color>
 
     <!-- Dialog Colors (Dark) -->
     <color name="dialog_background">#2C2C2C</color>

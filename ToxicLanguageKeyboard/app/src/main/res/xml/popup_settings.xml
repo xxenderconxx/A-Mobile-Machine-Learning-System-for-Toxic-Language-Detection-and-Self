@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
-    android:keyWidth="40dp"
-    android:keyHeight="50dp">
+    android:keyWidth="56dp"
+    android:keyHeight="56dp"
+    android:horizontalGap="4dp"
+    android:verticalGap="4dp">
     <Row>
         <Key android:codes="-102" android:keyIcon="@drawable/ic_settings"/>
     </Row>

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
     <!-- Modern Material 3 Tonal Palette -->
@@ -12,9 +11,7 @@
     <color name="indicator_background">#EDF1F9</color>
     <color name="indicator_text_color">#44474E</color>
 
-    <!-- Accent Colors -->
     <color name="color_primary">#6750A4</color>
-    <color name="color_secondary">#625B71</color>
 
     <!-- Status Colors -->
     <color name="color_success">#2E7D32</color>

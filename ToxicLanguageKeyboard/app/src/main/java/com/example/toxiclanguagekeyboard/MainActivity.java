@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
     public static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
     private static final String KEY_LAST_VERSION_CODE = "last_version_code";
     private static final String KEY_LAST_UPLOAD_TIME = "last_upload_time";
-    private static final long UPLOAD_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+    private static final long UPLOAD_COOLDOWN_MS = 60 * 1000; // 1 minute
 
     private SharedPreferences prefs;
     private TextView tvStats;
@@ -51,6 +51,17 @@ public class MainActivity extends AppCompatActivity {
     private View viewContribute;
     private ToxicityClassifier classifier;
     private TextView tvToxicityPreview;
+    private android.widget.ListView lvQueuedData;
+    private java.util.ArrayList<String> queuedItemsList = new java.util.ArrayList<>();
+    private android.widget.ArrayAdapter<String> queuedAdapter;
+    private android.widget.Button btnUploadFeedback;
+    private final android.os.Handler cooldownHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable cooldownRunnable = new Runnable() {
+        @Override
+        public void run() {
+            updateCooldownButton();
+        }
+    };
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
         if (KEY_COUNT_DETECTIONS.equals(key) || KEY_COUNT_EDITS.equals(key) || KEY_COUNT_IGNORED.equals(key)) {
@@ -87,11 +98,27 @@ public class MainActivity extends AppCompatActivity {
         Button btnReset = findViewById(R.id.btn_reset_stats);
         Button btnClearDict = findViewById(R.id.btn_clear_dictionary);
         Button btnExport = findViewById(R.id.btn_export_metrics);
-        Button btnUploadFeedback = findViewById(R.id.btn_upload_feedback);
+        btnUploadFeedback = findViewById(R.id.btn_upload_feedback);
         Button btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
         
         EditText etTest = findViewById(R.id.et_test);
         tvToxicityPreview = findViewById(R.id.tv_toxicity_preview);
+        lvQueuedData = findViewById(R.id.lv_queued_data);
+        
+        queuedAdapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_list_item_1, queuedItemsList);
+        lvQueuedData.setAdapter(queuedAdapter);
+
+        lvQueuedData.setOnItemClickListener((parent, view, position, id) -> {
+            String item = queuedItemsList.get(position);
+            if (item.equals("No data queued for review.")) return;
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Delete Contribution")
+                    .setMessage("Remove this item from the upload queue?")
+                    .setPositiveButton("Delete", (dialog, which) -> deleteQueuedItem(item))
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
         
         classifier = new ToxicityClassifier(this);
 
@@ -144,17 +171,14 @@ public class MainActivity extends AppCompatActivity {
         btnExport.setOnClickListener(v -> exportResearchReport());
 
         btnUploadFeedback.setOnClickListener(v -> {
-            // Cooldown check bypassed for testing
-            /*
             long lastUpload = prefs.getLong(KEY_LAST_UPLOAD_TIME, 0);
             long currentTime = System.currentTimeMillis();
 
             if (currentTime - lastUpload < UPLOAD_COOLDOWN_MS) {
-                long hoursLeft = (UPLOAD_COOLDOWN_MS - (currentTime - lastUpload)) / (60 * 60 * 1000);
-                Toast.makeText(this, getString(R.string.upload_cooldown_message, hoursLeft), Toast.LENGTH_LONG).show();
+                long secondsLeft = (UPLOAD_COOLDOWN_MS - (currentTime - lastUpload)) / 1000;
+                Toast.makeText(this, getString(R.string.upload_cooldown_message, secondsLeft), Toast.LENGTH_LONG).show();
                 return;
             }
-            */
 
             java.util.Set<String> safe = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
             java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
@@ -284,13 +308,14 @@ public class MainActivity extends AppCompatActivity {
             
             String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
             int userIdHash = androidId != null ? androidId.hashCode() : 0;
-            String docId = String.valueOf(userIdHash);
             data.put("userId", userIdHash);
 
+            // Use .document().set() to maintain ONE document per user as per Firestore rules.
+            // This enables server-side cooldown enforcement.
             db.collection("contributions")
-                    .document(docId)
+                    .document(String.valueOf(userIdHash))
                     .set(data)
-                    .addOnSuccessListener(documentReference -> {
+                    .addOnSuccessListener(aVoid -> {
                         movePendingToHistory(safe, toxic, falsePos);
                         prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, System.currentTimeMillis()).apply();
                         Toast.makeText(this, R.string.feedback_uploaded, Toast.LENGTH_LONG).show();
@@ -406,7 +431,34 @@ public class MainActivity extends AppCompatActivity {
         tvStats.setText(getString(R.string.stats_format, detections, edits, ignored, correctionRate));
     }
 
+    private void deleteQueuedItem(String displayItem) {
+        String originalText;
+        String key;
+
+        if (displayItem.startsWith("[TOXIC] ")) {
+            originalText = displayItem.substring("[TOXIC] ".length());
+            key = KEY_TOXIC_FEEDBACK;
+        } else if (displayItem.startsWith("[FALSE POSITIVE] ")) {
+            originalText = displayItem.substring("[FALSE POSITIVE] ".length());
+            key = KEY_FALSE_POSITIVES_FEEDBACK;
+        } else if (displayItem.startsWith("[SAFE/NEW] ")) {
+            originalText = displayItem.substring("[SAFE/NEW] ".length());
+            key = KEY_USER_DICTIONARY;
+        } else {
+            return;
+        }
+
+        java.util.Set<String> set = new java.util.HashSet<>(prefs.getStringSet(key, new java.util.HashSet<>()));
+        if (set.remove(originalText)) {
+            prefs.edit().putStringSet(key, set).apply();
+            // updateFeedbackStats() will be called by prefListener
+            Toast.makeText(this, "Item removed from queue", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void updateFeedbackStats() {
+        if (prefs == null) return;
+        updateCooldownButton();
         java.util.Set<String> safe = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
         java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());
         java.util.Set<String> falsePos = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>());
@@ -423,6 +475,36 @@ public class MainActivity extends AppCompatActivity {
         String totalText = getString(R.string.feedback_stats_total, totalSafe, totalToxic, totalFP);
         
         tvFeedbackStats.setText(pendingText + "\n" + totalText);
+
+        // Update Queued Data List
+        queuedItemsList.clear();
+        for (String s : toxic) queuedItemsList.add("[TOXIC] " + s);
+        for (String s : falsePos) queuedItemsList.add("[FALSE POSITIVE] " + s);
+        for (String s : safe) queuedItemsList.add("[SAFE/NEW] " + s);
+        
+        if (queuedItemsList.isEmpty()) {
+            queuedItemsList.add("No data queued for review.");
+        }
+        queuedAdapter.notifyDataSetChanged();
+    }
+
+    private void updateCooldownButton() {
+        if (btnUploadFeedback == null) return;
+
+        long lastUpload = prefs.getLong(KEY_LAST_UPLOAD_TIME, 0);
+        long currentTime = System.currentTimeMillis();
+        long diff = currentTime - lastUpload;
+
+        if (diff < UPLOAD_COOLDOWN_MS) {
+            long secondsLeft = (UPLOAD_COOLDOWN_MS - diff) / 1000;
+            btnUploadFeedback.setEnabled(false);
+            btnUploadFeedback.setText(getString(R.string.btn_upload_cooldown, secondsLeft));
+            cooldownHandler.postDelayed(cooldownRunnable, 1000);
+        } else {
+            btnUploadFeedback.setEnabled(true);
+            btnUploadFeedback.setText(R.string.btn_upload);
+            cooldownHandler.removeCallbacks(cooldownRunnable);
+        }
     }
 
     @Override
@@ -435,6 +517,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        cooldownHandler.removeCallbacks(cooldownRunnable);
         if (prefs != null) {
             prefs.unregisterOnSharedPreferenceChangeListener(prefListener);
         }

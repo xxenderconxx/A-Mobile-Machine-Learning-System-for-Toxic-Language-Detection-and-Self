@@ -44,7 +44,7 @@ public class ToxicityClassifier {
         }).start();
     }
 
-    private boolean isLoaded = false;
+    public boolean isLoaded = false;
 
     private String normalizeText(String text) {
         if (text == null) return "";
@@ -66,6 +66,46 @@ public class ToxicityClassifier {
     }
 
     /**
+     * REQ-2.2: Entity-Aware Feature Extraction
+     * Identifies if the text targets a specific person, group, or proper noun.
+     */
+    private double extractEntityFeatures(String originalText, String[] normalizedWords) {
+        boolean targetsPerson = false;
+        boolean targetsGroup = false;
+        boolean targetsProperNoun = false;
+
+        // 1. Detect Proper Nouns (Heuristic: Capitalized words not at start of sentence)
+        String[] originalWords = originalText.trim().split("\\s+");
+        for (int i = 1; i < originalWords.length; i++) {
+            if (originalWords[i].length() > 0 && Character.isUpperCase(originalWords[i].charAt(0))) {
+                targetsProperNoun = true;
+                break;
+            }
+        }
+
+        // 2. Detect Target Pronouns/Entities
+        java.util.Set<String> personTokens = new java.util.HashSet<>(java.util.Arrays.asList(
+                "you", "u", "he", "she", "him", "her", "yourself", "yourselves"
+        ));
+        java.util.Set<String> groupTokens = new java.util.HashSet<>(java.util.Arrays.asList(
+                "they", "them", "people", "everyone", "group", "all", "those"
+        ));
+
+        for (String word : normalizedWords) {
+            if (personTokens.contains(word)) targetsPerson = true;
+            if (groupTokens.contains(word)) targetsGroup = true;
+        }
+
+        // Apply weights for targeted hostility
+        if (targetsPerson && targetsProperNoun) return 1.45; // Targeted individual attack
+        if (targetsPerson) return 1.3;  // General personal attack
+        if (targetsGroup) return 1.2;   // Group hostility
+        if (targetsProperNoun) return 1.1; // Mention of specific entity
+        
+        return 1.0;
+    }
+
+    /**
      * Implements the Multi-Word Rule (Adaptive Confidence Gate):
      * - Rule A (Short Input): 1-2 words -> Threshold = 0.90
      * - Rule B (Long Input): 3+ words -> Threshold = 0.65
@@ -79,8 +119,8 @@ public class ToxicityClassifier {
         String[] words = cleaned.split("\\s+");
         int wordCount = words.length;
 
-        // Sigmoid calculation (handled in background by caller)
-        double probability = calculateProbability(cleaned);
+        // Use original text for entity detection to preserve capitalization
+        double probability = calculateProbability(text);
         
         // Adaptive Confidence Gate logic
         double threshold = (wordCount >= 3) ? 0.65 : 0.90;
@@ -110,6 +150,9 @@ public class ToxicityClassifier {
                 }
             }
         }
+
+        // Apply Entity-Aware Multiplier (REQ-2.2)
+        score *= extractEntityFeatures(text, words);
 
         return 1.0 / (1.0 + Math.exp(-score));
     }

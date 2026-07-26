@@ -1,8 +1,6 @@
 <resources>
     <string name="app_name">Toxic Language Keyboard</string>
     <string name="keyboard_name">Toxic Keyboard</string>
-    <string name="toxic_alert_title">Toxic Content Detected!</string>
-    <string name="toxic_alert_message">The text you typed has been flagged as toxic. Would you like to edit it or proceed anyway?</string>
     <string name="btn_edit">Edit</string>
     <string name="btn_proceed">Proceed Anyway</string>
     <string name="btn_enable_keyboard">1. Enable Keyboard</string>
@@ -48,6 +46,7 @@
     <string name="model_updated_title">Model Updated</string>
     <string name="model_updated_message">A new version of the app is installed. Your local word flags have been reset to align with the updated global filtering model.</string>
     <string name="btn_privacy_info">Privacy &amp; Research Info</string>
+    <string name="language_disclaimer">Optimized for English text. Taglish/Tagalog support is experimental.</string>
     <string name="research_info_title">Scope &amp; Privacy Policy</string>
     <string name="research_info_message"><b>Scope:</b> This tool currently supports English text only. Analysis is performed locally on-device.\n\n<b>Self-Regulation:</b> This app is designed for behavioral self-regulation and follows ISO 25010 usability standards. It does not report your private messages to external parties.\n\n<b>Data:</b> Feedback data (if contributed) is anonymized and used only for model refinement.</string>
     <string name="btn_export_metrics">Export Research Report</string>
@@ -55,5 +54,7 @@
     <string name="label_safe">Safe</string>
     <string name="label_toxic">Toxic</string>
     <string name="research_report_header">Toxic Keyboard Research Report\n------------------------------</string>
-    <string name="upload_cooldown_message">You can only contribute once every 24 hours. Please try again in %1$d hours.</string>
+    <string name="label_queued_contributions">Queued Contributions:</string>
+    <string name="upload_cooldown_message">You can only contribute once every minute. Please try again in %1$d seconds.</string>
+    <string name="btn_upload_cooldown">Wait %1$ds to submit another</string>
 </resources>

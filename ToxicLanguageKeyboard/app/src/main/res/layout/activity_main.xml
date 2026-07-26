@@ -46,7 +46,16 @@
                     android:text="@string/app_name"
                     android:textSize="24sp"
                     android:textStyle="bold"
-                    android:layout_marginBottom="32dp"/>
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/language_disclaimer"
+                    android:textSize="12sp"
+                    android:textColor="#757575"
+                    android:layout_marginBottom="24dp"
+                    android:gravity="center" />
 
                 <Button
                     android:id="@+id/btn_enable_keyboard"
@@ -116,7 +125,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_reset_metrics"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorPrimary" />
 
                 <Button
                     android:id="@+id/btn_export_metrics"
@@ -124,7 +134,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_export_metrics"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorPrimary" />
 
                 <Button
                     android:id="@+id/btn_clear_dictionary"
@@ -132,7 +143,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_clear_dictionary"
-                    android:textSize="12sp" />
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorPrimary" />
 
                 <Button
                     android:id="@+id/btn_privacy_info"
@@ -171,7 +183,24 @@
                 android:text="New Toxic Words: 0\nFalse Positives: 0"
                 android:textSize="16sp"
                 android:gravity="center"
-                android:layout_marginBottom="32dp" />
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_queued_contributions"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <ListView
+                android:id="@+id/lv_queued_data"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginBottom="16dp"
+                android:divider="@android:color/darker_gray"
+                android:dividerHeight="0.5dp" />
 
             <Button
                 android:id="@+id/btn_upload_feedback"
@@ -179,7 +208,8 @@
                 android:layout_height="wrap_content"
                 android:text="@string/btn_upload"
                 android:backgroundTint="#2196F3"
-                android:textColor="#FFFFFF" />
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="8dp" />
 
             <TextView
                 android:layout_width="match_parent"

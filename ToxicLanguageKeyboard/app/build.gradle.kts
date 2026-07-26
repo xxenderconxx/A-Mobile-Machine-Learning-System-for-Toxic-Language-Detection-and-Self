@@ -71,6 +71,8 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 }

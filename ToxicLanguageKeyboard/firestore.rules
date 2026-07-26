@@ -2,14 +2,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Each user has ONE document in 'contributions', named by their hashed Android ID.
-    // This allows us to enforce a 24-hour upload cooldown server-side.
+    // This allows us to enforce a 1-minute upload cooldown server-side.
     match /contributions/{userId} {
       // Allow creation if the payload contains a userId.
       allow create: if request.resource.data.userId != null;
 
-      // Update cooldown: One upload per 24 hours.
+      // Update cooldown: One upload per 1 minute.
       allow update: if request.resource.data.userId != null
-                    && (request.time > resource.data.timestamp + duration.value(24, 'h'));
+                    && (request.time > resource.data.timestamp + duration.value(1, 'm'));
 
       // Security: Research data is write-only for users.
       allow read, delete: if false;

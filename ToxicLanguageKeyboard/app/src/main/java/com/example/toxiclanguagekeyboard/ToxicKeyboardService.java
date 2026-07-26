@@ -18,6 +18,9 @@ import android.view.inputmethod.InputConnection;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.core.content.res.ResourcesCompat;
 import android.widget.Toast;
@@ -41,7 +44,13 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private KeyboardView keyboardView;
     private Keyboard qwertyKeyboard;
     private Keyboard symbolsKeyboard;
-    private Keyboard emojiKeyboard;
+    private Keyboard numpadKeyboard;
+    private Keyboard symbolsExtKeyboard;
+    private View emojiPanelView;
+    private boolean isEmojiPanelShowing = false;
+    private EmojiAdapter emojiAdapter;
+    private List<String> currentEmojiList = new ArrayList<>();
+    private List<String> recentEmojis = new ArrayList<>();
     private Keyboard clipboardKeyboard;
     private boolean isCaps = false;
     private boolean isCapsLock = false;
@@ -104,10 +113,24 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
-        } catch (GeneralSecurityException | IOException e) {
-            Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences", e);
-            // Fallback to regular prefs if encryption fails (though ideally we handle this better)
-            encryptedPrefs = prefs;
+        } catch (GeneralSecurityException | IOException | RuntimeException e) {
+            Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences, clearing corrupted data", e);
+            // If decryption fails (e.g. AEADBadTagException), we must clear the corrupted file
+            deleteSharedPreferences("secure_prefs");
+            try {
+                MasterKey masterKey = new MasterKey.Builder(this)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build();
+                encryptedPrefs = EncryptedSharedPreferences.create(
+                        this,
+                        "secure_prefs",
+                        masterKey,
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                );
+            } catch (Exception ex) {
+                encryptedPrefs = prefs;
+            }
         }
 
         initializeCommonWords();
@@ -115,6 +138,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         loadToxicFeedback();
         loadFalsePositives();
         loadClipboardHistory();
+        loadRecentEmojis();
         prefs.registerOnSharedPreferenceChangeListener(prefListener);
         
         clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -257,14 +281,20 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public View onCreateInputView() {
         Log.d("ToxicKeyboard", "onCreateInputView called");
-        View root = getLayoutInflater().inflate(R.layout.keyboard_view, null);
+        // Wrap context with theme to resolve ?attr/ selectable items
+        android.view.ContextThemeWrapper themeWrapper = new android.view.ContextThemeWrapper(this, R.style.Theme_ToxicLanguageKeyboard);
+        View root = LayoutInflater.from(themeWrapper).inflate(R.layout.keyboard_view, null);
         keyboardView = root.findViewById(R.id.keyboard_view);
+        emojiPanelView = root.findViewById(R.id.emoji_panel);
+        
+        setupEmojiPanel(root);
         safeIndicatorDot = root.findViewById(R.id.safe_indicator_dot);
         safeIndicatorText = root.findViewById(R.id.safe_indicator_text);
         
         qwertyKeyboard = new Keyboard(this, R.xml.qwerty);
         symbolsKeyboard = new Keyboard(this, R.xml.symbols);
-        emojiKeyboard = new Keyboard(this, R.xml.emoji);
+        symbolsExtKeyboard = new Keyboard(this, R.xml.symbols_ext);
+        numpadKeyboard = new Keyboard(this, R.xml.numpad);
         clipboardKeyboard = new Keyboard(this, R.xml.clipboard);
         
         keyboardView.setKeyboard(qwertyKeyboard);
@@ -278,6 +308,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         Log.d("ToxicKeyboard", "onStartInputView called");
         inputBuffer.setLength(0);
         lastCheckedText = "";
+        resetKeyboardState();
     }
 
     @Override
@@ -322,10 +353,23 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         switch (primaryCode) {
             case Keyboard.KEYCODE_DELETE:
-                if (inputBuffer.length() > 0) {
-                    inputBuffer.deleteCharAt(inputBuffer.length() - 1);
+                if (ic.getSelectedText(0) != null) {
+                    ic.commitText("", 1);
+                } else {
+                    CharSequence before = ic.getTextBeforeCursor(2, 0);
+                    if (before != null && before.length() > 0) {
+                        int deleteCount = 1;
+                        if (before.length() == 2 && Character.isSurrogatePair(before.charAt(0), before.charAt(1))) {
+                            deleteCount = 2;
+                        }
+                        
+                        if (inputBuffer.length() > 0) {
+                            int bufLen = inputBuffer.length();
+                            inputBuffer.delete(Math.max(0, bufLen - deleteCount), bufLen);
+                        }
+                        ic.deleteSurroundingText(deleteCount, 0);
+                    }
                 }
-                ic.deleteSurroundingText(1, 0);
                 break;
             case Keyboard.KEYCODE_SHIFT:
                 handleShift();
@@ -337,16 +381,29 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             case 10: // Enter
                 ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER));
                 checkToxicityAsync(true);
+                resetKeyboardState();
                 break;
             case Keyboard.KEYCODE_MODE_CHANGE:
                 if (keyboardView.getKeyboard() == qwertyKeyboard) {
+                    keyboardView.setKeyboard(symbolsKeyboard);
+                } else if (keyboardView.getKeyboard() == symbolsExtKeyboard) {
                     keyboardView.setKeyboard(symbolsKeyboard);
                 } else {
                     keyboardView.setKeyboard(qwertyKeyboard);
                 }
                 break;
+            case -300: // Switch to Extended Symbols
+                keyboardView.setKeyboard(symbolsExtKeyboard);
+                break;
+            case -3: // Switch to Numpad or back to Symbols
+                if (keyboardView.getKeyboard() == symbolsKeyboard || keyboardView.getKeyboard() == symbolsExtKeyboard) {
+                    keyboardView.setKeyboard(numpadKeyboard);
+                } else {
+                    keyboardView.setKeyboard(symbolsKeyboard);
+                }
+                break;
             case -100: // Emoji
-                keyboardView.setKeyboard(emojiKeyboard);
+                showEmojiPanel();
                 break;
             case -101: // Clipboard
                 updateClipboardKeyboard();
@@ -439,6 +496,21 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
         }
         keyboardView.invalidateAllKeys();
+    }
+
+    private void resetKeyboardState() {
+        isCaps = false;
+        isCapsLock = false;
+        if (qwertyKeyboard != null && keyboardView != null) {
+            qwertyKeyboard.setShifted(false);
+            keyboardView.setKeyboard(qwertyKeyboard);
+            updateShiftKeyState();
+            keyboardView.setVisibility(View.VISIBLE);
+        }
+        if (emojiPanelView != null) {
+            emojiPanelView.setVisibility(View.GONE);
+        }
+        isEmojiPanelShowing = false;
     }
 
     private Keyboard.Key findKeyByCode(int code) {
@@ -593,6 +665,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     private boolean isUnrecognized(String word) {
         if (word.length() <= 2) return false;
+        if (word.contains("@")) return false;
         
         String lower = word.toLowerCase();
         
@@ -706,9 +779,18 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         btnAdd.setOnClickListener(v -> {
             String cleanWord = word.toLowerCase().replaceAll("[^a-z']", "");
-            userDictionary.add(cleanWord);
-            prefs.edit().putStringSet(KEY_USER_DICTIONARY, userDictionary).apply();
-            uploadToFirebase(cleanWord, "safe", "unrecognized_prompt");
+            
+            // Check history first to prevent redundant pending entries
+            java.util.Set<String> history = prefs.getStringSet(KEY_USER_DICTIONARY_HISTORY, new java.util.HashSet<>());
+            if (!history.contains(cleanWord)) {
+                java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>()));
+                if (pending.add(cleanWord)) {
+                    prefs.edit().putStringSet(KEY_USER_DICTIONARY, pending).apply();
+                    // Only upload if it's a new contribution
+                    uploadToFirebase(cleanWord, "safe", "unrecognized_prompt");
+                }
+            }
+            
             Toast.makeText(this, R.string.toast_word_marked_safe, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -716,14 +798,20 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         Button btnMarkToxic = dialogView.findViewById(R.id.btn_mark_toxic);
         btnMarkToxic.setOnClickListener(v -> {
             String cleanWord = word.toLowerCase().replaceAll("[^a-z']", "");
-            java.util.Set<String> toxicFeedback = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
-            toxicFeedback.add(cleanWord);
-            prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, toxicFeedback).apply();
             
-            // Immediately update the engine
-            loadToxicFeedback();
+            // Check history first
+            java.util.Set<String> history = prefs.getStringSet(KEY_TOXIC_FEEDBACK_HISTORY, new java.util.HashSet<>());
+            if (!history.contains(cleanWord)) {
+                java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
+                if (pending.add(cleanWord)) {
+                    prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, pending).apply();
+                    // Immediately update the engine
+                    loadToxicFeedback();
+                    // Only upload if it's a new contribution
+                    uploadToFirebase(cleanWord, "toxic", "unrecognized_prompt");
+                }
+            }
 
-            uploadToFirebase(cleanWord, "toxic", "unrecognized_prompt");
             Toast.makeText(this, R.string.toast_word_marked_toxic, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -824,36 +912,47 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             // Normalize context before saving
             String cleanContext = toxicText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
             
-            // 1. Add to False Positives set
-            java.util.Set<String> falsePositives = new java.util.HashSet<>(prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>()));
-            falsePositives.add(cleanContext);
-            prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, falsePositives).apply();
-            falsePositivesSet.add(cleanContext);
+            // 1. Add to False Positives set (checking history first)
+            java.util.Set<String> fpHours = prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY, new java.util.HashSet<>());
+            if (!fpHours.contains(cleanContext)) {
+                java.util.Set<String> fpPending = new java.util.HashSet<>(prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>()));
+                if (fpPending.add(cleanContext)) {
+                    prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, fpPending).apply();
+                    // Only upload if it's a new contribution
+                    uploadToFirebase(cleanContext, "safe", "false_positive_report");
+                }
+            }
 
-            // 2. Add words to User Dictionary (Safe list) so they aren't marked unrecognized later
+            // 2. Add words to User Dictionary (Safe list) and remove from Toxic list (checking history first)
             String[] words = cleanContext.split("\\s+");
+            java.util.Set<String> safeHistory = prefs.getStringSet(KEY_USER_DICTIONARY_HISTORY, new java.util.HashSet<>());
+            java.util.Set<String> safePending = new java.util.HashSet<>(prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>()));
+            java.util.Set<String> toxicPending = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
+            
             boolean changedSafe = false;
             boolean changedToxic = false;
+
             for (String w : words) {
-                if (userDictionary.add(w)) {
+                if (w.isEmpty()) continue;
+                // Add to safe if not in history and not already in pending
+                if (!safeHistory.contains(w) && safePending.add(w)) {
                     changedSafe = true;
                 }
-                // Also ensure it's removed from toxic feedback if it was there
-                if (toxicFeedbackSet.remove(w)) {
+                // Remove from toxic pending if present
+                if (toxicPending.remove(w)) {
                     changedToxic = true;
                 }
             }
             
             SharedPreferences.Editor editor = prefs.edit();
             if (changedSafe) {
-                editor.putStringSet(KEY_USER_DICTIONARY, userDictionary);
+                editor.putStringSet(KEY_USER_DICTIONARY, safePending);
             }
             if (changedToxic) {
-                editor.putStringSet(KEY_TOXIC_FEEDBACK, toxicFeedbackSet);
+                editor.putStringSet(KEY_TOXIC_FEEDBACK, toxicPending);
             }
             editor.apply();
 
-            uploadToFirebase(cleanContext, "safe", "false_positive_report");
             Toast.makeText(this, R.string.toast_false_positive_reported, Toast.LENGTH_SHORT).show();
             windowManager.removeView(dialogView);
         });
@@ -862,6 +961,97 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             windowManager.addView(dialogView, params);
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void showEmojiPanel() {
+        isEmojiPanelShowing = true;
+        keyboardView.setVisibility(View.GONE);
+        emojiPanelView.setVisibility(View.VISIBLE);
+    }
+
+    private void hideEmojiPanel() {
+        isEmojiPanelShowing = false;
+        emojiPanelView.setVisibility(View.GONE);
+        keyboardView.setVisibility(View.VISIBLE);
+    }
+
+    private void loadRecentEmojis() {
+        String recent = prefs.getString("recent_emojis", "");
+        if (!recent.isEmpty()) {
+            recentEmojis = new ArrayList<>(java.util.Arrays.asList(recent.split(",")));
+        }
+    }
+
+    private void saveRecentEmoji(String emoji) {
+        recentEmojis.remove(emoji);
+        recentEmojis.add(0, emoji);
+        if (recentEmojis.size() > 40) {
+            recentEmojis.remove(recentEmojis.size() - 1);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < recentEmojis.size(); i++) {
+            sb.append(recentEmojis.get(i));
+            if (i < recentEmojis.size() - 1) sb.append(",");
+        }
+        prefs.edit().putString("recent_emojis", sb.toString()).apply();
+    }
+
+    private void setupEmojiPanel(View root) {
+        root.findViewById(R.id.btn_emoji_back).setOnClickListener(v -> hideEmojiPanel());
+        root.findViewById(R.id.btn_emoji_to_abc).setOnClickListener(v -> hideEmojiPanel());
+        
+        ImageButton delBtn = root.findViewById(R.id.btn_emoji_del);
+        delBtn.setOnClickListener(v -> onKey(Keyboard.KEYCODE_DELETE, null));
+        
+        androidx.recyclerview.widget.RecyclerView emojiRecycler = root.findViewById(R.id.emoji_recycler);
+        emojiRecycler.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 8));
+        
+        currentEmojiList = EmojiLibrary.getAllEmojis();
+        emojiAdapter = new EmojiAdapter(currentEmojiList, emoji -> {
+            getCurrentInputConnection().commitText(emoji, 1);
+            saveRecentEmoji(emoji);
+        });
+        emojiRecycler.setAdapter(emojiAdapter);
+
+        // Setup categories
+        LinearLayout categoryContainer = root.findViewById(R.id.emoji_categories);
+        for (int i = 0; i < categoryContainer.getChildCount(); i++) {
+            View child = categoryContainer.getChildAt(i);
+            if (child instanceof ImageButton) {
+                final int index = i;
+                child.setOnClickListener(v -> jumpToCategory(index));
+            }
+        }
+    }
+
+    private void jumpToCategory(int categoryIndex) {
+        androidx.recyclerview.widget.RecyclerView emojiRecycler = emojiPanelView.findViewById(R.id.emoji_recycler);
+        if (emojiRecycler == null) return;
+
+        // Reset to all if showing filtered (not applicable anymore as search is removed, but good for safety)
+        if (emojiAdapter.getItemCount() != EmojiLibrary.getAllEmojis().size() && categoryIndex != 0) {
+            emojiAdapter.updateData(EmojiLibrary.getAllEmojis());
+        }
+
+        if (categoryIndex == 0) { // Recent
+            emojiAdapter.updateData(recentEmojis.isEmpty() ? new ArrayList<>() : recentEmojis);
+            emojiRecycler.scrollToPosition(0);
+            return;
+        }
+
+        int position = 0;
+        Map<String, List<String>> categories = EmojiLibrary.getCategorizedEmojis();
+        int i = 1; // Start from 1 because 0 is Recent
+        for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
+            if (i == categoryIndex) {
+                if (emojiRecycler.getLayoutManager() instanceof androidx.recyclerview.widget.GridLayoutManager) {
+                    ((androidx.recyclerview.widget.GridLayoutManager) emojiRecycler.getLayoutManager()).scrollToPositionWithOffset(position, 0);
+                }
+                break;
+            }
+            position += entry.getValue().size();
+            i++;
         }
     }
 
@@ -904,19 +1094,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     @Override
     public void swipeUp() {}
-
-    /**
-     * Modernized cursor control: moves the cursor forward or backward
-     * triggered by horizontal swipes on the keyboard view.
-     */
-    public void onCursorMove(boolean forward) {
-        InputConnection ic = getCurrentInputConnection();
-        if (ic != null) {
-            int keyCode = forward ? android.view.KeyEvent.KEYCODE_DPAD_RIGHT : android.view.KeyEvent.KEYCODE_DPAD_LEFT;
-            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode));
-            ic.sendKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode));
-        }
-    }
 
     private void uploadToFirebase(String text, String label, String type) {
         try {

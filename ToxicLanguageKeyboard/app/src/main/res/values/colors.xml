@@ -12,6 +12,7 @@
     <color name="indicator_text_color">#44474E</color>
 
     <color name="color_primary">#6750A4</color>
+    <color name="onboarding_skip_text">#381E72</color>
 
     <!-- Status Colors -->
     <color name="color_success">#2E7D32</color>

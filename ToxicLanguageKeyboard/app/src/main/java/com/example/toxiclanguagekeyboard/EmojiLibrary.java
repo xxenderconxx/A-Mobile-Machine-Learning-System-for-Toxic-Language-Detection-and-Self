@@ -22,7 +22,25 @@ public class EmojiLibrary {
         // ... more can be added
     }
 
-    public static Map<String, List<String>> getCategorizedEmojis() {
+    public static Map<String, List<String>> getCategorizedEmojis(android.graphics.Paint paint) {
+        Map<String, List<String>> categories = new LinkedHashMap<>();
+        Map<String, List<String>> raw = getRawCategorizedEmojis();
+
+        for (Map.Entry<String, List<String>> entry : raw.entrySet()) {
+            List<String> sanitized = new ArrayList<>();
+            for (String emoji : entry.getValue()) {
+                if (paint == null || paint.hasGlyph(emoji)) {
+                    sanitized.add(emoji);
+                }
+            }
+            if (!sanitized.isEmpty()) {
+                categories.put(entry.getKey(), sanitized);
+            }
+        }
+        return categories;
+    }
+
+    private static Map<String, List<String>> getRawCategorizedEmojis() {
         Map<String, List<String>> categories = new LinkedHashMap<>();
         
         // 1. Smileys & Emotions
@@ -97,9 +115,9 @@ public class EmojiLibrary {
         return categories;
     }
 
-    public static List<String> getAllEmojis() {
+    public static List<String> getAllEmojis(android.graphics.Paint paint) {
         List<String> all = new ArrayList<>();
-        Map<String, List<String>> categorized = getCategorizedEmojis();
+        Map<String, List<String>> categorized = getCategorizedEmojis(paint);
         for (List<String> list : categorized.values()) {
             all.addAll(list);
         }

@@ -69,6 +69,7 @@ dependencies {
     // Firebase dependencies
     implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
     implementation("com.google.firebase:firebase-firestore")
+    implementation(libs.taptargetview)
     
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)

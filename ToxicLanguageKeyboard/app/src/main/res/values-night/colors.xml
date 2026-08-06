@@ -7,6 +7,7 @@
     <color name="indicator_background">#1E1E1E</color>
     <color name="indicator_text_color">#E1E1E1</color>
     <color name="icon_color">#A0A0A0</color>
+    <color name="onboarding_skip_text">#D0BCFF</color>
 
     <!-- Dialog Colors (Dark) -->
     <color name="dialog_background">#2C2C2C</color>

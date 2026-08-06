@@ -25,12 +25,15 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.getkeepsafe.taptargetview.TapTarget;
+import com.getkeepsafe.taptargetview.TapTargetSequence;
 
 public class MainActivity extends AppCompatActivity {
 
     public static final String PREFS_NAME = "ToxicKeyboardPrefs";
     public static final String KEY_FILTERING_ENABLED = "filtering_enabled";
     private static final String KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted";
+    private static final String KEY_COMPLETED_IN_APP_TUTORIAL = "has_completed_in_app_tutorial";
     public static final String KEY_COUNT_DETECTIONS = "count_detections";
     public static final String KEY_COUNT_EDITS = "count_edits";
     public static final String KEY_COUNT_IGNORED = "count_ignored";
@@ -40,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
     public static final String KEY_TOXIC_FEEDBACK_HISTORY = "toxic_feedback_history";
     public static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
     public static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
+    public static final String KEY_TOTAL_USAGE_TIME = "total_usage_time";
     private static final String KEY_LAST_VERSION_CODE = "last_version_code";
     private static final String KEY_LAST_UPLOAD_TIME = "last_upload_time";
     private static final long UPLOAD_COOLDOWN_MS = 60 * 1000; // 1 minute
@@ -55,6 +59,17 @@ public class MainActivity extends AppCompatActivity {
     private java.util.ArrayList<String> queuedItemsList = new java.util.ArrayList<>();
     private android.widget.ArrayAdapter<String> queuedAdapter;
     private android.widget.Button btnUploadFeedback;
+    
+    private Button btnEnable;
+    private Button btnSelect;
+    private Button btnOverlay;
+    private SwitchMaterial switchFiltering;
+    private Button btnReset;
+    private Button btnClearDict;
+    private Button btnExport;
+    private Button btnPrivacyInfo;
+    private com.google.android.material.tabs.TabLayout tabLayout;
+
     private final android.os.Handler cooldownHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable cooldownRunnable = new Runnable() {
         @Override
@@ -75,10 +90,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        if (!prefs.getBoolean("has_completed_tutorial", false)) {
+            startActivity(new Intent(this, OnboardingActivity.class));
+            finish();
+            return;
+        }
+
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_main);
         prefs.registerOnSharedPreferenceChangeListener(prefListener);
 
         checkVersionAndClearFeedback();
@@ -89,17 +110,17 @@ public class MainActivity extends AppCompatActivity {
         tvFeedbackStats = findViewById(R.id.tv_feedback_stats);
         viewSettings = findViewById(R.id.view_settings);
         viewContribute = findViewById(R.id.view_contribute);
-        com.google.android.material.tabs.TabLayout tabLayout = findViewById(R.id.tab_layout);
+        tabLayout = findViewById(R.id.tab_layout);
 
-        Button btnEnable = findViewById(R.id.btn_enable_keyboard);
-        Button btnSelect = findViewById(R.id.btn_select_keyboard);
-        Button btnOverlay = findViewById(R.id.btn_overlay_permission);
-        SwitchMaterial switchFiltering = findViewById(R.id.switch_filtering);
-        Button btnReset = findViewById(R.id.btn_reset_stats);
-        Button btnClearDict = findViewById(R.id.btn_clear_dictionary);
-        Button btnExport = findViewById(R.id.btn_export_metrics);
+        btnEnable = findViewById(R.id.btn_enable_keyboard);
+        btnSelect = findViewById(R.id.btn_select_keyboard);
+        btnOverlay = findViewById(R.id.btn_overlay_permission);
+        switchFiltering = findViewById(R.id.switch_filtering);
+        btnReset = findViewById(R.id.btn_reset_stats);
+        btnClearDict = findViewById(R.id.btn_clear_dictionary);
+        btnExport = findViewById(R.id.btn_export_metrics);
         btnUploadFeedback = findViewById(R.id.btn_upload_feedback);
-        Button btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
+        btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
         
         EditText etTest = findViewById(R.id.et_test);
         tvToxicityPreview = findViewById(R.id.tv_toxicity_preview);
@@ -196,8 +217,6 @@ public class MainActivity extends AppCompatActivity {
 
         switchFiltering.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean(KEY_FILTERING_ENABLED, isChecked).apply();
-            int resId = isChecked ? R.string.toast_filtering_enabled : R.string.toast_filtering_disabled;
-            Toast.makeText(this, resId, Toast.LENGTH_SHORT).show();
         });
 
         btnEnable.setOnClickListener(v -> {
@@ -232,6 +251,137 @@ public class MainActivity extends AppCompatActivity {
                 updateLiveToxicity(s.toString());
             }
         });
+
+        if (!prefs.getBoolean(KEY_COMPLETED_IN_APP_TUTORIAL, false)) {
+            startInAppTutorial();
+        }
+    }
+
+    private void startInAppTutorial() {
+        TapTargetSequence sequence = new TapTargetSequence(this)
+                .targets(
+                        TapTarget.forView(btnEnable, getString(R.string.btn_enable_keyboard), getString(R.string.tutorial_step_1))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnSelect, getString(R.string.btn_select_keyboard), getString(R.string.tutorial_step_2))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnOverlay, getString(R.string.btn_overlay_permission), getString(R.string.tutorial_step_3))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(switchFiltering, getString(R.string.switch_filtering_label), getString(R.string.tutorial_step_4))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnReset, getString(R.string.btn_reset_metrics), getString(R.string.tutorial_step_5))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnExport, getString(R.string.btn_export_metrics), getString(R.string.tutorial_step_6))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnClearDict, getString(R.string.btn_clear_dictionary), getString(R.string.tutorial_step_7))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnPrivacyInfo, getString(R.string.btn_privacy_info), getString(R.string.tutorial_step_8))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false)
+                )
+                .listener(new TapTargetSequence.Listener() {
+                    @Override
+                    public void onSequenceFinish() {
+                        // Switch to Contribute tab for the next part of the tutorial
+                        if (tabLayout != null && tabLayout.getTabAt(1) != null) {
+                            tabLayout.getTabAt(1).select();
+                            startContributeTutorial();
+                        }
+                    }
+
+                    @Override
+                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
+
+                    @Override
+                    public void onSequenceCanceled(TapTarget lastTarget) {}
+                });
+        sequence.start();
+    }
+
+    private void startContributeTutorial() {
+        // Find the "Contribute" tab view. TabLayout doesn't give direct access to the tab view easily,
+        // so we target the tabLayout itself for Step 9 explanation if we can't find the specific view.
+        // For simplicity in Step 9, we'll target the tabLayout.
+        
+        TapTargetSequence sequence = new TapTargetSequence(this)
+                .targets(
+                        TapTarget.forView(tabLayout, "Contribute Tab", getString(R.string.tutorial_step_9))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(lvQueuedData, getString(R.string.label_queued_contributions), getString(R.string.tutorial_step_10))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false),
+                        TapTarget.forView(btnUploadFeedback, getString(R.string.btn_upload), getString(R.string.tutorial_step_11))
+                                .outerCircleColor(R.color.color_primary)
+                                .targetCircleColor(android.R.color.white)
+                                .titleTextColor(android.R.color.white)
+                                .descriptionTextColor(android.R.color.white)
+                                .transparentTarget(true)
+                                .cancelable(false)
+                )
+                .listener(new TapTargetSequence.Listener() {
+                    @Override
+                    public void onSequenceFinish() {
+                        prefs.edit().putBoolean(KEY_COMPLETED_IN_APP_TUTORIAL, true).apply();
+                        if (tabLayout != null && tabLayout.getTabAt(0) != null) {
+                            tabLayout.getTabAt(0).select();
+                        }
+                        Toast.makeText(MainActivity.this, R.string.btn_tutorial_finish, Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
+
+                    @Override
+                    public void onSequenceCanceled(TapTarget lastTarget) {}
+                });
+        sequence.start();
     }
 
     private void updateLiveToxicity(String text) {
@@ -246,27 +396,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void exportResearchReport() {
+        if (!isNetworkAvailable()) {
+            Toast.makeText(this, "Internet required for research upload.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
         int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
         int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
+        long usageTime = prefs.getLong(KEY_TOTAL_USAGE_TIME, 0);
         double rate = detections > 0 ? (double) edits / detections * 100 : 0.0;
 
-        StringBuilder report = new StringBuilder();
-        report.append(getString(R.string.research_report_header)).append("\n");
-        report.append("Timestamp: ").append(new java.util.Date().toString()).append("\n");
-        report.append("Total Detections: ").append(detections).append("\n");
-        report.append("User Edits (Corrections): ").append(edits).append("\n");
-        report.append("Ignored Alerts: ").append(ignored).append("\n");
-        report.append("Self-Correction Rate: ").append(String.format("%.2f%%", rate)).append("\n");
-        report.append("------------------------------\n");
-        
-        Intent sendIntent = new Intent();
-        sendIntent.setAction(Intent.ACTION_SEND);
-        sendIntent.putExtra(Intent.EXTRA_TEXT, report.toString());
-        sendIntent.setType("text/plain");
-        
-        Intent shareIntent = Intent.createChooser(sendIntent, "Export Report");
-        startActivity(shareIntent);
+        java.util.Map<String, Object> report = new java.util.HashMap<>();
+        report.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+        report.put("total_detections", detections);
+        report.put("user_corrections", edits);
+        report.put("ignored_alerts", ignored);
+        report.put("self_correction_rate", rate);
+        report.put("total_usage_ms", usageTime);
+
+        String androidId = android.provider.Settings.Secure.getString(getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+        int userIdHash = androidId != null ? androidId.hashCode() : 0;
+        report.put("userId", userIdHash);
+
+        com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
+        db.collection("research_reports")
+                .add(report)
+                .addOnSuccessListener(documentReference -> Toast.makeText(this, "Research metrics uploaded securely.", Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(this, "Upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
     private void showResearchInfoDialog() {
@@ -300,26 +457,25 @@ public class MainActivity extends AppCompatActivity {
         // Use Firestore to upload the bulk payload as a single contribution document
         try {
             com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
-            java.util.Map<String, Object> data = new java.util.HashMap<>();
-            data.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
-            data.put("safe_words", new java.util.ArrayList<>(safe));
-            data.put("toxic_words", new java.util.ArrayList<>(toxic));
-            data.put("false_positives", new java.util.ArrayList<>(falsePos));
-            
             String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
             int userIdHash = androidId != null ? androidId.hashCode() : 0;
-            data.put("userId", userIdHash);
+            String docId = String.valueOf(userIdHash);
 
-            // Use .document().set() to maintain ONE document per user as per Firestore rules.
-            // This enables server-side cooldown enforcement.
+            java.util.Map<String, Object> updates = new java.util.HashMap<>();
+            updates.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+            updates.put("userId", userIdHash);
+            updates.put("safe_words", com.google.firebase.firestore.FieldValue.arrayUnion(safe.toArray()));
+            updates.put("toxic_words", com.google.firebase.firestore.FieldValue.arrayUnion(toxic.toArray()));
+            updates.put("false_positives", com.google.firebase.firestore.FieldValue.arrayUnion(falsePos.toArray()));
+
+            // Use set with merge to ensure the document exists and update with arrayUnion in one call
             db.collection("contributions")
-                    .document(String.valueOf(userIdHash))
-                    .set(data)
+                    .document(docId)
+                    .set(updates, com.google.firebase.firestore.SetOptions.merge())
                     .addOnSuccessListener(aVoid -> {
                         movePendingToHistory(safe, toxic, falsePos);
                         prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, System.currentTimeMillis()).apply();
                         Toast.makeText(this, R.string.feedback_uploaded, Toast.LENGTH_LONG).show();
-                        Toast.makeText(this, "Internet access revoked.", Toast.LENGTH_SHORT).show();
                     })
                     .addOnFailureListener(e -> {
                         Toast.makeText(this, "Upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -421,14 +577,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateStatsDisplay() {
+        if (prefs == null) return;
         int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
         int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
         int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
-        
+        long totalTimeMs = prefs.getLong(KEY_TOTAL_USAGE_TIME, 0);
+
         // Behavioral Metric: Percentage of detections the user chose to self-correct
         double correctionRate = detections > 0 ? (double) edits / detections * 100 : 0.0;
-        
-        tvStats.setText(getString(R.string.stats_format, detections, edits, ignored, correctionRate));
+
+        long totalSeconds = totalTimeMs / 1000;
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        String stats = getString(R.string.stats_format, detections, edits, ignored, correctionRate);
+        String usage = "\nActive Usage: " + hours + "h " + minutes + "m " + seconds + "s (Goal: 3h)";
+        tvStats.setText(stats + usage);
+
+        if (totalTimeMs >= 3 * 60 * 60 * 1000 && !prefs.getBoolean("milestone_shown", false)) {
+            showMilestoneDialog();
+        }
+    }
+
+    private void showMilestoneDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Research Milestone Reached!")
+                .setMessage("Thank you! You have contributed 3 hours of active keyboard usage to this study. Your participation is helping us improve behavioral self-regulation tools.")
+                .setPositiveButton("Continue", (dialog, which) -> prefs.edit().putBoolean("milestone_shown", true).apply())
+                .show();
     }
 
     private void deleteQueuedItem(String displayItem) {

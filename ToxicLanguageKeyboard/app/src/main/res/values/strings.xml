@@ -51,10 +51,38 @@
     <string name="research_info_message"><b>Scope:</b> This tool currently supports English text only. Analysis is performed locally on-device.\n\n<b>Self-Regulation:</b> This app is designed for behavioral self-regulation and follows ISO 25010 usability standards. It does not report your private messages to external parties.\n\n<b>Data:</b> Feedback data (if contributed) is anonymized and used only for model refinement.</string>
     <string name="btn_export_metrics">Export Research Report</string>
     <string name="toxicity_preview_format">Model Confidence: %1$.1f%% (%2$s)</string>
-    <string name="label_safe">Safe</string>
-    <string name="label_toxic">Toxic</string>
+    <string name="label_safe">Safe to type</string>
+    <string name="label_toxic">Toxic language detected</string>
     <string name="research_report_header">Toxic Keyboard Research Report\n------------------------------</string>
     <string name="label_queued_contributions">Queued Contributions:</string>
     <string name="upload_cooldown_message">You can only contribute once every minute. Please try again in %1$d seconds.</string>
     <string name="btn_upload_cooldown">Wait %1$ds to submit another</string>
+
+    <!-- Onboarding Strings -->
+    <string name="onboarding_title_1">Welcome to Toxic Keyboard</string>
+    <string name="onboarding_desc_1">Reduce toxicity in your digital life with real-time AI-powered filtering and suggestions.</string>
+    <string name="onboarding_title_2">Local &amp; Private</string>
+    <string name="onboarding_desc_2">All typing analysis happens locally on your device. Your private messages never leave your phone.</string>
+    <string name="onboarding_title_3">Self-Regulation</string>
+    <string name="onboarding_desc_3">Learn to communicate better with metrics that track your self-correction rate over time.</string>
+    <string name="onboarding_title_4">Help Research</string>
+    <string name="onboarding_desc_4">Optionally contribute anonymous flags to improve our model for everyone.</string>
+    <string name="btn_next">Next</string>
+    <string name="btn_get_started">Get Started</string>
+    <string name="btn_skip">Skip</string>
+
+    <!-- Tutorial Strings -->
+    <string name="tutorial_step_1">Tap here to enable the keyboard in your system settings.</string>
+    <string name="tutorial_step_2">Switch to the Toxic Keyboard to start using it.</string>
+    <string name="tutorial_step_3">Grant overlay permission for real-time toxicity alerts.</string>
+    <string name="tutorial_step_4">Toggle real-time filtering here or long-press the comma on the keyboard.</string>
+    <string name="tutorial_step_5">Reset your self-regulation metrics to start fresh.</string>
+    <string name="tutorial_step_6">Manually upload your research report to our secure server.</string>
+    <string name="tutorial_step_7">Wipe your local dictionary and feedback history.</string>
+    <string name="tutorial_step_8">Read more about our privacy policy and research goals.</string>
+    <string name="tutorial_step_9">Review and manage your pending contributions here.</string>
+    <string name="tutorial_step_10">Tap an item to remove it from the upload queue.</string>
+    <string name="tutorial_step_11">Upload your feedback to help improve our model.</string>
+    <string name="btn_tutorial_next">Got it</string>
+    <string name="btn_tutorial_finish">Finish Tutorial</string>
 </resources>

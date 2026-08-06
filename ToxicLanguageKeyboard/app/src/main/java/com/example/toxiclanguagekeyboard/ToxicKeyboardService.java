@@ -18,7 +18,6 @@ import android.view.inputmethod.InputConnection;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -49,15 +48,15 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private View emojiPanelView;
     private boolean isEmojiPanelShowing = false;
     private EmojiAdapter emojiAdapter;
-    private List<String> currentEmojiList = new ArrayList<>();
     private List<String> recentEmojis = new ArrayList<>();
     private Keyboard clipboardKeyboard;
     private boolean isCaps = false;
     private boolean isCapsLock = false;
     private long lastShiftClickTime = 0;
     private long lastSpaceClickTime = 0;
+    private long keyboardStartTime = 0;
     private static final long DOUBLE_TAP_TIMEOUT = 300;
-    private StringBuilder inputBuffer = new StringBuilder();
+    private final StringBuilder inputBuffer = new StringBuilder();
     private SubstitutionEngine substitutionEngine;
     private ToxicityClassifier toxicityClassifier;
     private View safeIndicatorDot;
@@ -76,8 +75,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private Context windowContext;
     private java.util.Set<String> commonWords;
     private java.util.Set<String> commonSkeletons;
-    private java.util.Set<String> toxicSkeletons = new java.util.HashSet<>();
-    private java.util.Set<String> userSkeletons = new java.util.HashSet<>();
+    private final java.util.Set<String> toxicSkeletons = new java.util.HashSet<>();
+    private final java.util.Set<String> userSkeletons = new java.util.HashSet<>();
     private java.util.Set<String> userDictionary;
     private java.util.Set<String> toxicFeedbackSet;
     private java.util.Set<String> falsePositivesSet;
@@ -96,7 +95,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d("ToxicKeyboard", "onCreate called");
         substitutionEngine = new SubstitutionEngine(this);
         toxicityClassifier = new ToxicityClassifier(this);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -306,9 +304,23 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     public void onStartInputView(android.view.inputmethod.EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
         Log.d("ToxicKeyboard", "onStartInputView called");
+        keyboardStartTime = System.currentTimeMillis();
         inputBuffer.setLength(0);
         lastCheckedText = "";
         resetKeyboardState();
+    }
+
+    @Override
+    public void onFinishInputView(boolean finishingInput) {
+        super.onFinishInputView(finishingInput);
+        if (keyboardStartTime > 0) {
+            long duration = System.currentTimeMillis() - keyboardStartTime;
+            if (duration > 0) {
+                long totalTime = prefs.getLong("total_usage_time", 0);
+                prefs.edit().putLong("total_usage_time", totalTime + duration).apply();
+            }
+            keyboardStartTime = 0;
+        }
     }
 
     @Override
@@ -625,7 +637,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             if (shouldShowAlert) {
                 mainHandler.post(() -> {
                     updateSafeIndicator(false);
-                    showToxicAlert(contextText, isEndOfSentence);
+                    showToxicAlert(contextText);
                 });
                 return;
             }
@@ -654,10 +666,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             mainHandler.post(() -> {
                 if (isSafe) {
                     safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_green);
-                    safeIndicatorText.setText("Safe to type");
+                    safeIndicatorText.setText(R.string.label_safe);
                 } else {
                     safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_red);
-                    safeIndicatorText.setText("Toxic language detected");
+                    safeIndicatorText.setText(R.string.label_toxic);
                 }
             });
         }
@@ -832,7 +844,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         try {
             windowManager.addView(dialogView, params);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("ToxicKeyboard", "Error showing unrecognized alert", e);
         }
     }
 
@@ -846,7 +858,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         return sb.toString().trim();
     }
 
-    private void showToxicAlert(String toxicText, boolean isEndOfSentence) {
+    private void showToxicAlert(String toxicText) {
         // Increment Detections Count
         int currentDetections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
         prefs.edit().putInt(KEY_COUNT_DETECTIONS, currentDetections + 1).apply();
@@ -960,7 +972,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         try {
             windowManager.addView(dialogView, params);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("ToxicKeyboard", "Error showing toxic alert", e);
         }
     }
 
@@ -1007,7 +1019,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         androidx.recyclerview.widget.RecyclerView emojiRecycler = root.findViewById(R.id.emoji_recycler);
         emojiRecycler.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 8));
         
-        currentEmojiList = EmojiLibrary.getAllEmojis();
+        android.graphics.Paint paint = new android.graphics.Paint();
+        List<String> currentEmojiList = EmojiLibrary.getAllEmojis(paint);
         emojiAdapter = new EmojiAdapter(currentEmojiList, emoji -> {
             getCurrentInputConnection().commitText(emoji, 1);
             saveRecentEmoji(emoji);
@@ -1029,9 +1042,12 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         androidx.recyclerview.widget.RecyclerView emojiRecycler = emojiPanelView.findViewById(R.id.emoji_recycler);
         if (emojiRecycler == null) return;
 
-        // Reset to all if showing filtered (not applicable anymore as search is removed, but good for safety)
-        if (emojiAdapter.getItemCount() != EmojiLibrary.getAllEmojis().size() && categoryIndex != 0) {
-            emojiAdapter.updateData(EmojiLibrary.getAllEmojis());
+        android.graphics.Paint paint = new android.graphics.Paint();
+        List<String> allEmojis = EmojiLibrary.getAllEmojis(paint);
+
+        // Reset to all if showing filtered
+        if (emojiAdapter.getItemCount() != allEmojis.size() && categoryIndex != 0) {
+            emojiAdapter.updateData(allEmojis);
         }
 
         if (categoryIndex == 0) { // Recent
@@ -1041,7 +1057,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         }
 
         int position = 0;
-        Map<String, List<String>> categories = EmojiLibrary.getCategorizedEmojis();
+        Map<String, List<String>> categories = EmojiLibrary.getCategorizedEmojis(paint);
         int i = 1; // Start from 1 because 0 is Recent
         for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
             if (i == categoryIndex) {

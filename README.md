@@ -26,7 +26,6 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 - 🔒 **Privacy-First Design:** Core ML inference runs locally without sending raw user messages to an external server.
 - 🤝 **Crowdsourced Refinement:** Opt-in system allowing users to submit flagged edge cases (False Positives/Missed Toxicity) to a secure backend to aid retrain operations.
 - 📊 **Behavioral Analytics:** Tracks user self-correction rates and active interaction metrics to measure behavioral moderation impact.
-- 🎯 **Gamified Milestones:** Built-in research milestone tracking celebrating active, healthy usage targets.
 - 💡 **Interactive Onboarding:** Guided feature discovery using smooth UI targets to introduce users to self-moderation mechanisms.
 
 ---
@@ -93,7 +92,6 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 
 ### Backend & Data Collection
 - **Cloud Database:** Google Firebase Firestore
-- **Model Versioning:** Version-locked local feedback queues (syncs based on `version_code`)
 
 ---
 
@@ -157,9 +155,8 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 
 ## 🧠 Machine Learning & Feedback Pipeline
 
-* **Model Pipeline:** Trained on standard toxicity datasets via sequence tokenization, embedding, and export to an optimized `.tflite` model format.
+* **Model Pipeline:** Trained on standard toxicity datasets via sequence tokenization, embedding, and export to an optimized `.json` model format.
 * **Inference Latency:** On-device processing delivers predictions in **< 50ms**, ensuring real-time responsiveness without delaying user typing.
-* **Version-Locked Feedback:** The app automatically clears local feedback queues when a new model `version_code` is deployed, ensuring submitted corrections remain relevant to the active model iteration.
 
 ---
 

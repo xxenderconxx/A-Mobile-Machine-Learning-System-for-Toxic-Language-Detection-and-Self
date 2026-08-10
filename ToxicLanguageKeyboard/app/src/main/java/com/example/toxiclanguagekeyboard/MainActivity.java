@@ -8,6 +8,8 @@ import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -61,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
     private android.widget.Button btnUploadFeedback;
     private android.widget.Button btnSkipTutorial;
     private TapTargetSequence activeSequence;
+    private int currentTutorialStep = 0;
     
     private Button btnEnable;
     private Button btnSelect;
@@ -126,6 +129,16 @@ public class MainActivity extends AppCompatActivity {
         btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
         btnSkipTutorial = findViewById(R.id.btn_skip_tutorial);
         btnHelp = findViewById(R.id.btn_help);
+
+        // Move skip button to DecorView to ensure it stays above the TapTargetView overlay
+        btnSkipTutorial.post(() -> {
+            ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+            ViewGroup currentParent = (ViewGroup) btnSkipTutorial.getParent();
+            if (currentParent != null && currentParent != decorView) {
+                currentParent.removeView(btnSkipTutorial);
+                decorView.addView(btnSkipTutorial);
+            }
+        });
         
         btnSkipTutorial.setOnClickListener(v -> finishInAppTutorial(true));
         btnHelp.setOnClickListener(v -> {
@@ -274,7 +287,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startInAppTutorial() {
+        currentTutorialStep = 0;
         btnSkipTutorial.setVisibility(View.VISIBLE);
+        
+        View[] targets = {btnEnable, btnSelect, btnOverlay, switchFiltering, btnReset, btnExport, btnClearDict, btnPrivacyInfo};
+        updateSkipButtonPosition(targets[0]);
+
         activeSequence = new TapTargetSequence(this)
                 .targets(
                         TapTarget.forView(btnEnable, getString(R.string.btn_enable_keyboard), getString(R.string.tutorial_step_1))
@@ -345,7 +363,12 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
+                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {
+                        currentTutorialStep++;
+                        if (currentTutorialStep < targets.length) {
+                            updateSkipButtonPosition(targets[currentTutorialStep]);
+                        }
+                    }
 
                     @Override
                     public void onSequenceCanceled(TapTarget lastTarget) {
@@ -356,10 +379,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startContributeTutorial() {
-        // Find the "Contribute" tab view. TabLayout doesn't give direct access to the tab view easily,
-        // so we target the tabLayout itself for Step 9 explanation if we can't find the specific view.
-        // For simplicity in Step 9, we'll target the tabLayout.
+        currentTutorialStep = 0;
         btnSkipTutorial.setVisibility(View.VISIBLE);
+        
+        View[] targets = {tvFeedbackStats, lvQueuedData, btnUploadFeedback};
+        updateSkipButtonPosition(targets[0]);
+
         activeSequence = new TapTargetSequence(this)
                 .targets(
                         TapTarget.forView(tvFeedbackStats, "Pending Categories", getString(R.string.tutorial_step_9))
@@ -391,7 +416,12 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
+                    public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {
+                        currentTutorialStep++;
+                        if (currentTutorialStep < targets.length) {
+                            updateSkipButtonPosition(targets[currentTutorialStep]);
+                        }
+                    }
 
                     @Override
                     public void onSequenceCanceled(TapTarget lastTarget) {
@@ -399,6 +429,63 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
         activeSequence.start();
+    }
+
+    private void updateSkipButtonPosition(View targetView) {
+        if (targetView == null || btnSkipTutorial == null) return;
+        
+        targetView.post(() -> {
+            View parent = (View) btnSkipTutorial.getParent();
+            if (parent == null) return;
+
+            int[] parentLocation = new int[2];
+            parent.getLocationInWindow(parentLocation);
+            
+            int[] targetLocation = new int[2];
+            targetView.getLocationInWindow(targetLocation);
+            
+            int viewHeight = targetView.getHeight();
+            int viewWidth = targetView.getWidth();
+            
+            btnSkipTutorial.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            int skipWidth = btnSkipTutorial.getMeasuredWidth();
+            
+            float density = getResources().getDisplayMetrics().density;
+            
+            // X and Y relative to the parent FrameLayout
+            float x = (targetLocation[0] - parentLocation[0]) + (viewWidth / 2f) - (skipWidth / 2f);
+            float y = (targetLocation[1] - parentLocation[1]) + viewHeight + (12 * density); // 12dp margin
+            
+            // Ensure button doesn't go off screen horizontally
+            float margin = 16 * density;
+            float parentWidth = parent.getWidth();
+            x = Math.max(margin, x);
+            if (x + skipWidth > parentWidth - margin) {
+                x = parentWidth - skipWidth - margin;
+            }
+            
+            // Ensure button doesn't go off screen vertically (bottom)
+            float parentHeight = parent.getHeight();
+            int skipHeight = btnSkipTutorial.getMeasuredHeight();
+            if (y + skipHeight > parentHeight - margin) {
+                // If it goes off bottom, try placing it above the target
+                y = (targetLocation[1] - parentLocation[1]) - skipHeight - (12 * density);
+            }
+
+            btnSkipTutorial.setX(x);
+            btnSkipTutorial.setY(y);
+            
+            // Aggressive Z-ordering to stay above the TapTargetView overlay
+            btnSkipTutorial.setElevation(1000f);
+            btnSkipTutorial.setZ(1000f);
+            btnSkipTutorial.bringToFront();
+            
+            // Re-apply bringToFront after a short delay to ensure we are above the newly added TapTargetView
+            btnSkipTutorial.postDelayed(() -> {
+                btnSkipTutorial.bringToFront();
+                btnSkipTutorial.requestLayout();
+            }, 100);
+        });
     }
 
     private void finishInAppTutorial(boolean canceledByUser) {

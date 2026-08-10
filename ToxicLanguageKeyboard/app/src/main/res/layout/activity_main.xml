@@ -254,12 +254,16 @@
             android:id="@+id/btn_skip_tutorial"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
-            android:layout_margin="16dp"
+            android:layout_gravity="top|start"
             android:text="@string/btn_skip"
             android:visibility="gone"
-            android:elevation="10dp"
-            style="?android:attr/borderlessButtonStyle"
-            android:textColor="?attr/colorPrimary" />
+            android:elevation="1000dp"
+            android:translationZ="1000dp"
+            android:stateListAnimator="@null"
+            android:backgroundTint="#FFFFFF"
+            android:textColor="@color/tutorial_skip_text_color"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:clickable="true"
+            android:focusable="true" />
     </FrameLayout>
 </LinearLayout>

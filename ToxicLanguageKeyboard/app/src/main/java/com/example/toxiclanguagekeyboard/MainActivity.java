@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private java.util.ArrayList<String> queuedItemsList = new java.util.ArrayList<>();
     private android.widget.ArrayAdapter<String> queuedAdapter;
     private android.widget.Button btnUploadFeedback;
+    private android.widget.Button btnSkipTutorial;
+    private TapTargetSequence activeSequence;
     
     private Button btnEnable;
     private Button btnSelect;
@@ -68,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnClearDict;
     private Button btnExport;
     private Button btnPrivacyInfo;
+    private android.widget.ImageButton btnHelp;
     private com.google.android.material.tabs.TabLayout tabLayout;
 
     private final android.os.Handler cooldownHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -121,6 +124,19 @@ public class MainActivity extends AppCompatActivity {
         btnExport = findViewById(R.id.btn_export_metrics);
         btnUploadFeedback = findViewById(R.id.btn_upload_feedback);
         btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
+        btnSkipTutorial = findViewById(R.id.btn_skip_tutorial);
+        btnHelp = findViewById(R.id.btn_help);
+        
+        btnSkipTutorial.setOnClickListener(v -> finishInAppTutorial(true));
+        btnHelp.setOnClickListener(v -> {
+            if (activeSequence != null) {
+                activeSequence.cancel();
+            }
+            if (tabLayout != null && tabLayout.getTabAt(0) != null) {
+                tabLayout.getTabAt(0).select();
+            }
+            startInAppTutorial();
+        });
         
         EditText etTest = findViewById(R.id.et_test);
         tvToxicityPreview = findViewById(R.id.tv_toxicity_preview);
@@ -258,7 +274,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startInAppTutorial() {
-        TapTargetSequence sequence = new TapTargetSequence(this)
+        btnSkipTutorial.setVisibility(View.VISIBLE);
+        activeSequence = new TapTargetSequence(this)
                 .targets(
                         TapTarget.forView(btnEnable, getString(R.string.btn_enable_keyboard), getString(R.string.tutorial_step_1))
                                 .outerCircleColor(R.color.color_primary)
@@ -266,56 +283,56 @@ public class MainActivity extends AppCompatActivity {
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnSelect, getString(R.string.btn_select_keyboard), getString(R.string.tutorial_step_2))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnOverlay, getString(R.string.btn_overlay_permission), getString(R.string.tutorial_step_3))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(switchFiltering, getString(R.string.switch_filtering_label), getString(R.string.tutorial_step_4))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnReset, getString(R.string.btn_reset_metrics), getString(R.string.tutorial_step_5))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnExport, getString(R.string.btn_export_metrics), getString(R.string.tutorial_step_6))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnClearDict, getString(R.string.btn_clear_dictionary), getString(R.string.tutorial_step_7))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnPrivacyInfo, getString(R.string.btn_privacy_info), getString(R.string.tutorial_step_8))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false)
+                                .cancelable(true)
                 )
                 .listener(new TapTargetSequence.Listener() {
                     @Override
@@ -331,57 +348,75 @@ public class MainActivity extends AppCompatActivity {
                     public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
 
                     @Override
-                    public void onSequenceCanceled(TapTarget lastTarget) {}
+                    public void onSequenceCanceled(TapTarget lastTarget) {
+                        finishInAppTutorial(true);
+                    }
                 });
-        sequence.start();
+        activeSequence.start();
     }
 
     private void startContributeTutorial() {
         // Find the "Contribute" tab view. TabLayout doesn't give direct access to the tab view easily,
         // so we target the tabLayout itself for Step 9 explanation if we can't find the specific view.
         // For simplicity in Step 9, we'll target the tabLayout.
-        
-        TapTargetSequence sequence = new TapTargetSequence(this)
+        btnSkipTutorial.setVisibility(View.VISIBLE);
+        activeSequence = new TapTargetSequence(this)
                 .targets(
-                        TapTarget.forView(tabLayout, "Contribute Tab", getString(R.string.tutorial_step_9))
+                        TapTarget.forView(tvFeedbackStats, "Pending Categories", getString(R.string.tutorial_step_9))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(lvQueuedData, getString(R.string.label_queued_contributions), getString(R.string.tutorial_step_10))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false),
+                                .cancelable(true),
                         TapTarget.forView(btnUploadFeedback, getString(R.string.btn_upload), getString(R.string.tutorial_step_11))
                                 .outerCircleColor(R.color.color_primary)
                                 .targetCircleColor(android.R.color.white)
                                 .titleTextColor(android.R.color.white)
                                 .descriptionTextColor(android.R.color.white)
                                 .transparentTarget(true)
-                                .cancelable(false)
+                                .cancelable(true)
                 )
                 .listener(new TapTargetSequence.Listener() {
                     @Override
                     public void onSequenceFinish() {
-                        prefs.edit().putBoolean(KEY_COMPLETED_IN_APP_TUTORIAL, true).apply();
-                        if (tabLayout != null && tabLayout.getTabAt(0) != null) {
-                            tabLayout.getTabAt(0).select();
-                        }
-                        Toast.makeText(MainActivity.this, R.string.btn_tutorial_finish, Toast.LENGTH_SHORT).show();
+                        finishInAppTutorial(false);
                     }
 
                     @Override
                     public void onSequenceStep(TapTarget lastTarget, boolean targetClicked) {}
 
                     @Override
-                    public void onSequenceCanceled(TapTarget lastTarget) {}
+                    public void onSequenceCanceled(TapTarget lastTarget) {
+                        finishInAppTutorial(true);
+                    }
                 });
-        sequence.start();
+        activeSequence.start();
+    }
+
+    private void finishInAppTutorial(boolean canceledByUser) {
+        prefs.edit().putBoolean(KEY_COMPLETED_IN_APP_TUTORIAL, true).apply();
+        if (btnSkipTutorial != null) {
+            btnSkipTutorial.setVisibility(View.GONE);
+        }
+        if (canceledByUser && activeSequence != null) {
+            TapTargetSequence seq = activeSequence;
+            activeSequence = null;
+            seq.cancel();
+        }
+        if (!canceledByUser) {
+            if (tabLayout != null && tabLayout.getTabAt(0) != null) {
+                tabLayout.getTabAt(0).select();
+            }
+            Toast.makeText(MainActivity.this, R.string.btn_tutorial_finish, Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void updateLiveToxicity(String text) {

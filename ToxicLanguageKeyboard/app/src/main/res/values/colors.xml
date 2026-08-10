@@ -29,4 +29,6 @@
     <!-- Additional UI Colors -->
     <color name="icon_color">#49454F</color>
     <color name="color_info">#2196F3</color>
+    <color name="ic_launcher_background_color">#4B1BC6</color>
+    <color name="tutorial_skip_text_color">#1E1E1E</color>
 </resources>

@@ -85,4 +85,5 @@
     <string name="tutorial_step_11">Upload your feedback to help improve our model.</string>
     <string name="btn_tutorial_next">Got it</string>
     <string name="btn_tutorial_finish">Finish Tutorial</string>
+    <string name="content_description_help">Help</string>
 </resources>

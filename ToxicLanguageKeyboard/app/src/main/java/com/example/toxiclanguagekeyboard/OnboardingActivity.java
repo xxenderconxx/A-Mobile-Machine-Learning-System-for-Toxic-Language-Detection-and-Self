@@ -47,10 +47,10 @@ public class OnboardingActivity extends AppCompatActivity {
         TabLayout tabLayout = findViewById(R.id.tabLayout);
 
         List<OnboardingPage> pages = new ArrayList<>();
-        pages.add(new OnboardingPage(getString(R.string.onboarding_title_1), getString(R.string.onboarding_desc_1), R.drawable.ic_launcher_foreground));
-        pages.add(new OnboardingPage(getString(R.string.onboarding_title_2), getString(R.string.onboarding_desc_2), R.drawable.ic_launcher_foreground));
-        pages.add(new OnboardingPage(getString(R.string.onboarding_title_3), getString(R.string.onboarding_desc_3), R.drawable.ic_launcher_foreground));
-        pages.add(new OnboardingPage(getString(R.string.onboarding_title_4), getString(R.string.onboarding_desc_4), R.drawable.ic_launcher_foreground));
+        pages.add(new OnboardingPage(getString(R.string.onboarding_title_1), getString(R.string.onboarding_desc_1), R.mipmap.ic_launcher_logo));
+        pages.add(new OnboardingPage(getString(R.string.onboarding_title_2), getString(R.string.onboarding_desc_2), R.mipmap.ic_launcher_logo));
+        pages.add(new OnboardingPage(getString(R.string.onboarding_title_3), getString(R.string.onboarding_desc_3), R.mipmap.ic_launcher_logo));
+        pages.add(new OnboardingPage(getString(R.string.onboarding_title_4), getString(R.string.onboarding_desc_4), R.mipmap.ic_launcher_logo));
 
         OnboardingAdapter adapter = new OnboardingAdapter(pages);
         viewPager.setAdapter(adapter);

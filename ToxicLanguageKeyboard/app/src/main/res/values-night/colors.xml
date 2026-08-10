@@ -19,4 +19,5 @@
     <color name="color_error">#EF5350</color>
     <color name="color_success">#81C784</color>
     <color name="color_info">#64B5F6</color>
+    <color name="tutorial_skip_text_color">#FFFFFF</color>
 </resources>

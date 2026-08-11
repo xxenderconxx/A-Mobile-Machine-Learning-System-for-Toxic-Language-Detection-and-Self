@@ -15,6 +15,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.text.InputType;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.widget.Button;
@@ -91,6 +93,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private static final String KEY_TOXIC_FEEDBACK_HISTORY = "toxic_feedback_history";
     private static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
     private static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
+    private static final String PARTIAL_EMAIL_REGEX = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*";
 
     @Override
     public void onCreate() {
@@ -301,10 +304,12 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     @Override
-    public void onStartInputView(android.view.inputmethod.EditorInfo info, boolean restarting) {
+    public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
         Log.d("ToxicKeyboard", "onStartInputView called");
-        keyboardStartTime = System.currentTimeMillis();
+        if (keyboardStartTime == 0) {
+            keyboardStartTime = System.currentTimeMillis();
+        }
         inputBuffer.setLength(0);
         lastCheckedText = "";
         resetKeyboardState();
@@ -313,6 +318,28 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public void onFinishInputView(boolean finishingInput) {
         super.onFinishInputView(finishingInput);
+        saveUsageTime();
+    }
+
+    @Override
+    public void onWindowShown() {
+        super.onWindowShown();
+        if (keyboardStartTime == 0) {
+            keyboardStartTime = System.currentTimeMillis();
+        }
+        // Re-bind keyboard listeners
+        if (keyboardView != null) {
+            keyboardView.setOnKeyboardActionListener(this);
+        }
+    }
+
+    @Override
+    public void onWindowHidden() {
+        super.onWindowHidden();
+        saveUsageTime();
+    }
+
+    private void saveUsageTime() {
         if (keyboardStartTime > 0) {
             long duration = System.currentTimeMillis() - keyboardStartTime;
             if (duration > 0) {
@@ -567,14 +594,33 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             return;
         }
 
+        // Bypass for password fields
+        EditorInfo info = getCurrentInputEditorInfo();
+        if (info != null) {
+            int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
+            if (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) {
+                if (isEndOfSentence) inputBuffer.setLength(0);
+                mainHandler.post(() -> updateSafeIndicator(true));
+                return;
+            }
+        }
+
         if (classificationRunnable != null) {
             mainHandler.removeCallbacks(classificationRunnable);
         }
 
         String fullText = inputBuffer.toString();
-        String contextText = getLastWords(fullText, 7);
+        
+        // Filter out email addresses from evaluation
+        String filteredText = fullText.replaceAll(PARTIAL_EMAIL_REGEX, "");
+        String contextText = getLastWords(filteredText, 7);
 
-        if (contextText.trim().isEmpty()) return;
+        if (contextText.trim().isEmpty()) {
+            if (isEndOfSentence) inputBuffer.setLength(0);
+            return;
+        }
 
         classificationRunnable = () -> executorService.execute(() -> {
             if (BuildConfig.DEBUG) {
@@ -643,9 +689,12 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
 
             // 2. Check for Unrecognized Vocabulary (only on space/punctuation)
-            String lastWord = getLastWords(fullText, 1).toLowerCase().replaceAll("[^a-z']", "");
-            if (!lastWord.isEmpty() && isUnrecognized(lastWord)) {
-                mainHandler.post(() -> showUnrecognizedAlert(lastWord));
+            String rawLastWord = getLastWords(fullText, 1);
+            if (!rawLastWord.matches(PARTIAL_EMAIL_REGEX)) {
+                String cleanLastWord = rawLastWord.toLowerCase().replaceAll("[^a-z']", "");
+                if (!cleanLastWord.isEmpty() && isUnrecognized(cleanLastWord)) {
+                    mainHandler.post(() -> showUnrecognizedAlert(cleanLastWord));
+                }
             }
 
             mainHandler.post(() -> updateSafeIndicator(true));
@@ -677,7 +726,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     private boolean isUnrecognized(String word) {
         if (word.length() <= 2) return false;
-        if (word.contains("@")) return false;
         
         String lower = word.toLowerCase();
         

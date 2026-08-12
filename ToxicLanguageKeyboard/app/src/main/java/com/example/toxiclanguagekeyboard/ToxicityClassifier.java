@@ -79,7 +79,10 @@ public class ToxicityClassifier {
                 .replace("5", "s")
                 .replace("8", "b")
                 .replace("7", "t")
-                .replace("+", "t");
+                .replace("+", "t")
+                .replace("*", "")  // Remove asterisks used in obfuscation (e.g., f*ck -> fck)
+                .replace("_", "")
+                .replace("-", "");
         
         return normalized.replaceAll("[^a-z\\s]", "").trim();
     }
@@ -140,8 +143,10 @@ public class ToxicityClassifier {
         // Use original text for entity detection to preserve capitalization
         double probability = calculateProbability(text, useEntityFeatures);
         
-        // Adaptive Confidence Gate logic
-        double threshold = (wordCount >= 3) ? 0.65 : 0.90;
+        // Threshold chosen to balance Precision and Recall for V9 weights.
+        // Peak F1 at 0.90 is too high for a safety feature (Recall would be too low).
+        // 0.45 offers F1 ~56% with Recall ~80%, providing a good safety margin.
+        double threshold = (wordCount >= 3) ? 0.45 : 0.55;
 
         return probability >= threshold;
     }

@@ -25,18 +25,16 @@ def clean(text):
     return text.strip()
 
 # 3. VECTORIZATION WITH CONTEXT (N-GRAMS)
-# Including bigrams allows the model to differentiate "not toxic" from "toxic".
-# min_df=5 filters out rare typos that can act as "noise" features.
 custom_stops = [
     'you', 'your', 'yours', 'me', 'my', 'mine', 
     'are', 'is', 'am', 'will', 'have', 'has', 'do', 'does',
     'the', 'a', 'an', 'this', 'that', 'it', 'to', 'was',
-    'shut', 'get', 'go', 'being', 'what', 'who', 'why', 'how']
+    'being', 'what', 'who', 'why', 'how']
 
 vectorizer = TfidfVectorizer(
     max_features=30000, 
     ngram_range=(1, 3), 
-    stop_words=custom_stops, # Pruning the pronouns
+    stop_words=custom_stops,
     min_df=5,
     sublinear_tf=True
 )
@@ -45,12 +43,10 @@ X = vectorizer.fit_transform(df['comment_text'].apply(clean))
 y = df['toxic']
 
 # 4. TUNED LOGISTIC REGRESSION
-# Using C=0.5 (stronger regularization) to lower the weights of neutral words.
-# 'balanced' class_weight helps if your dataset has fewer toxic than benign samples.
+# Using C=0.05 for stronger regularization
 model = LogisticRegression(
     class_weight='balanced', 
     solver='liblinear', 
-    #penalty='l2', 
     C=0.05
 )
 model.fit(X, y)
@@ -59,14 +55,36 @@ model.fit(X, y)
 feature_names = vectorizer.get_feature_names_out()
 weights = model.coef_[0]
 
-# Filter for relevant weights to keep the JSON manageable[cite: 8]
+# Filter for relevant weights. Lowering threshold to 0.3 for better vocabulary.
 weight_dict = {
     word: round(float(w), 4) 
     for word, w in zip(feature_names, weights) 
-    if abs(w) > 0.7 # Increased threshold to find the most influential features
+    if abs(w) > 0.3
 }
 
-# Sort Descending: Highest positive weights (Toxic) at the top
+# Neutralize "jumpy" words that are often dataset noise
+features_to_kill = [
+    'wikipedia', 'like', 'just', 'thanks', 'edit', 'page', 'article',
+    'know', 'think', 'user', 'talk', 'actually', 'even', 'all', 'shut',
+    'get', 'go', 'it', 'was', 'to'
+]
+for word in features_to_kill:
+    if word in weight_dict:
+        weight_dict[word] = 0.0
+
+# THE MANUAL OVERRIDE (Phrase Blocklist)
+manual_fixes = {
+    "poop for brains": 5.5,
+    "piece of crap": 4.8,
+    "you are stupid": 6.0,
+    "tangina": 4.5,
+    "jajabol": 5.4
+}
+
+for phrase, weight in manual_fixes.items():
+    weight_dict[phrase] = weight
+
+# Sort Descending AFTER all fixes
 sorted_weights = dict(sorted(weight_dict.items(), key=lambda item: item[1], reverse=True))
 
 output = {
@@ -74,31 +92,15 @@ output = {
         "model_type": "Logistic Regression + Bigrams",
         "total_samples": len(df),
         "features_exported": len(sorted_weights),
-        "regularization_C": 0.5
+        "regularization_C": 0.05,
+        "weight_threshold": 0.3
     },
     "intercept": round(float(model.intercept_[0]), 4),
     "weights": sorted_weights
 }
 
-# Add this BEFORE saving to JSON
-features_to_kill = ['are', 'shut', 'is', 'it', 'to', 'go']
-for word in features_to_kill:
-    if word in weight_dict:
-        weight_dict[word] = 0.0  # Manually neutralize the "jumpy" words
-
-# THE MANUAL OVERRIDE (Phrase Blocklist)
-# Add this right before you save the weight_dict to JSON
-manual_fixes = {
-    "poop for brains": 5.5,
-    "piece of crap": 4.8,
-    "you are stupid": 6.0
-}
-
-# Inject them into the dictionary
-for phrase, weight in manual_fixes.items():
-    weight_dict[phrase] = weight
-
-with open('optimized_weights_v8.json', 'w') as f:
+with open('optimized_weights_v9.json', 'w') as f:
     json.dump(output, f, indent=4)
 
-print(f"Success! Model trained and weights exported to optimized_weights_v8.json.")
+print(f"Success! Model trained and weights exported to optimized_weights_v9.json.")
+print(f"Total features: {len(sorted_weights)}")

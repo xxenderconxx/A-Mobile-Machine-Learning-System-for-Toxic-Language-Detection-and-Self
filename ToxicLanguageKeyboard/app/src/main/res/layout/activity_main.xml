@@ -121,15 +121,6 @@
                     android:layout_height="wrap_content"
                     android:hint="Test keyboard here..."
                     android:inputType="textLongMessage"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/tv_toxicity_preview"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Model Confidence: 0.0% (Safe)"
-                    android:textSize="12sp"
-                    android:textColor="#757575"
                     android:layout_marginBottom="32dp" />
 
                 <TextView

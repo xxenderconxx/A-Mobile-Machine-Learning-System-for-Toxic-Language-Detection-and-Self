@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.provider.Settings;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FieldValue;
 
 public class ToxicKeyboardService extends InputMethodService implements KeyboardView.OnKeyboardActionListener {
 
@@ -75,10 +73,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private SharedPreferences encryptedPrefs;
     private WindowManager overlayWindowManager;
     private Context windowContext;
-    private java.util.Set<String> commonWords;
-    private java.util.Set<String> commonSkeletons;
-    private final java.util.Set<String> toxicSkeletons = new java.util.HashSet<>();
-    private final java.util.Set<String> userSkeletons = new java.util.HashSet<>();
     private java.util.Set<String> userDictionary;
     private java.util.Set<String> toxicFeedbackSet;
     private java.util.Set<String> falsePositivesSet;
@@ -115,7 +109,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             );
         } catch (GeneralSecurityException | IOException | RuntimeException e) {
-            Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences, clearing corrupted data", e);
+            android.util.Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences, clearing corrupted data", e);
             // If decryption fails (e.g. AEADBadTagException), we must clear the corrupted file
             deleteSharedPreferences("secure_prefs");
             try {
@@ -134,7 +128,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
         }
 
-        initializeCommonWords();
         loadUserDictionary();
         loadToxicFeedback();
         loadFalsePositives();
@@ -194,9 +187,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         userDictionary = new java.util.HashSet<>(pending);
         userDictionary.addAll(history);
         
-        userSkeletons.clear();
-        for (String w : userDictionary) {
-            userSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
+        if (substitutionEngine != null) {
+            substitutionEngine.setDynamicSafeWords(userDictionary);
         }
     }
 
@@ -205,11 +197,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         java.util.Set<String> history = prefs.getStringSet(KEY_TOXIC_FEEDBACK_HISTORY, new java.util.HashSet<>());
         toxicFeedbackSet = new java.util.HashSet<>(pending);
         toxicFeedbackSet.addAll(history);
-
-        toxicSkeletons.clear();
-        for (String w : toxicFeedbackSet) {
-            toxicSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
-        }
         
         if (substitutionEngine != null) {
             substitutionEngine.setDynamicToxicWords(toxicFeedbackSet);
@@ -223,65 +210,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         falsePositivesSet.addAll(history);
     }
 
-    private void initializeCommonWords() {
-        java.util.List<String> words = java.util.Arrays.asList(
-            "a", "about", "above", "across", "after", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "an", "and", "another", "any", "anybody", "anyone", "anything", "anywhere", "are", "area", "around", "as", "ask", "at", "away",
-            "back", "be", "became", "because", "become", "becomes", "been", "before", "began", "begin", "behind", "being", "below", "beside", "best", "better", "between", "big", "both", "boy", "but", "by",
-            "call", "came", "can", "cannot", "can't", "car", "certain", "change", "child", "children", "city", "close", "come", "could", "couldn't", "country", "course", "cut",
-            "day", "did", "didn't", "do", "does", "doesn't", "dog", "done", "don't", "door", "down", "during",
-            "each", "early", "earth", "eat", "either", "else", "end", "enough", "even", "ever", "every", "everybody", "everyone", "everything", "everywhere", "eye",
-            "face", "fact", "far", "father", "feel", "few", "find", "fire", "first", "five", "for", "four", "from", "front", "full",
-            "gave", "get", "girl", "give", "given", "go", "good", "got", "great", "group", "grow",
-            "had", "hadn't", "half", "hand", "has", "hasn't", "have", "haven't", "he", "head", "hear", "heard", "help", "her", "here", "hers", "herself", "he's", "high", "him", "himself", "his", "home", "house", "how", "however",
-            "i", "if", "important", "in", "interest", "into", "is", "isn't", "it", "its", "it's", "itself",
-            "just", "keep", "kind", "knew", "know", "known",
-            "land", "large", "last", "later", "learn", "leave", "left", "less", "let", "letter", "life", "light", "like", "line", "little", "live", "long", "look", "love", "low",
-            "made", "make", "man", "many", "may", "maybe", "me", "mean", "men", "might", "mile", "miss", "more", "most", "mother", "mountain", "move", "much", "must", "my", "myself",
-            "name", "near", "need", "never", "new", "next", "night", "no", "not", "nothing", "now", "number",
-            "of", "off", "often", "oh", "old", "on", "once", "one", "only", "open", "or", "order", "other", "others", "our", "out", "over", "own",
-            "page", "paper", "part", "past", "people", "perhaps", "person", "place", "play", "point", "present", "public", "put",
-            "question", "quite",
-            "read", "real", "really", "right", "room", "run",
-            "said", "same", "saw", "say", "school", "sea", "second", "see", "seem", "seemed", "sentence", "set", "several", "she", "she's", "short", "should", "show", "side", "since", "small", "so", "some", "somebody", "someone", "something", "somewhere", "soon", "sound", "still", "story", "study", "such", "sure",
-            "take", "tell", "than", "thank", "thanks", "that", "that's", "the", "their", "them", "themselves", "then", "there", "therefore", "these", "they", "thing", "think", "this", "those", "though", "thought", "three", "through", "time", "to", "together", "too", "took", "toward", "turn", "two",
-            "under", "until", "up", "upon", "us", "use", "used",
-            "very",
-            "walk", "want", "was", "wasn't", "water", "way", "we", "well", "went", "were", "weren't", "what", "what's", "when", "where", "whether", "which", "while", "white", "who", "whole", "whom", "whose", "why", "will", "with", "within", "without", "word", "work", "world", "would", "wouldn't", "write",
-            "year", "yet", "you", "young", "your", "yours", "yourself", "yourselves", "you're",
-            "hi", "hello", "hey", "heyy", "heya", "yo", "sup", "please", "sorry", "yes", "ok", "okay", "yeah", "yep", "yup", "thanks", "welcome", "howdy", "goodbye", "bye", "test", "testing", "message", "type", "keyboard", "input",
-            "today", "tomorrow", "yesterday", "morning", "afternoon", "evening", "night", "week", "month", "year", "time", "hour", "minute", "second",
-            "happy", "sad", "angry", "excited", "bored", "tired", "hungry", "thirsty", "good", "bad", "better", "best", "worse", "worst",
-            "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "gray", "grey",
-            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-            "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million",
-            "can", "could", "will", "would", "shall", "should", "may", "might", "must", "ought", "need", "dare",
-            "am", "is", "are", "was", "were", "be", "being", "been", "have", "has", "had", "do", "does", "did",
-            "doing", "done", "having", "going", "gone", "coming", "come", "taking", "taken", "making", "made",
-            "using", "used", "finding", "found", "giving", "given", "telling", "told", "working", "worked",
-            "calling", "called", "trying", "tried", "asking", "asked", "needing", "needed", "feeling", "felt",
-            "looking", "looked", "becoming", "became", "leaving", "left", "putting", "put", "meaning", "meant",
-            "keep", "kept", "let", "begin", "begun", "began", "show", "shown", "hear", "heard", "play", "played",
-            "run", "ran", "move", "moved", "live", "lived", "believe", "believed", "bring", "brought", "happen", "happened",
-            "write", "wrote", "written", "sit", "sat", "stand", "stood", "lose", "lost", "pay", "paid", "meet", "met",
-            "include", "included", "continue", "continued", "set", "learn", "learned", "change", "changed", "lead", "led",
-            "understand", "understood", "watch", "watched", "follow", "followed", "stop", "stopped", "create", "created",
-            "speak", "spoke", "spoken", "read", "allow", "allowed", "add", "added", "spend", "spent", "grow", "grew", "grown",
-            "open", "opened", "walk", "walked", "win", "won", "offer", "offered", "remember", "remembered", "love", "loved",
-            "consider", "considered", "appear", "appeared", "buy", "bought", "wait", "waited", "serve", "served", "die", "died",
-            "send", "sent", "expect", "expected", "build", "built", "stay", "stayed", "fall", "fell", "fallen", "cut",
-            "reach", "reached", "kill", "killed", "remain", "remained"
-        );
-        
-        commonWords = new java.util.HashSet<>(words);
-        commonSkeletons = new java.util.HashSet<>();
-        for (String w : words) {
-            commonSkeletons.add(w.replaceAll("(.)\\1+", "$1"));
-        }
-    }
-
     @Override
     public View onCreateInputView() {
-        Log.d("ToxicKeyboard", "onCreateInputView called");
         // Wrap context with theme to resolve ?attr/ selectable items
         android.view.ContextThemeWrapper themeWrapper = new android.view.ContextThemeWrapper(this, R.style.Theme_ToxicLanguageKeyboard);
         View root = LayoutInflater.from(themeWrapper).inflate(R.layout.keyboard_view, null);
@@ -306,7 +236,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
-        Log.d("ToxicKeyboard", "onStartInputView called");
         if (keyboardStartTime == 0) {
             keyboardStartTime = System.currentTimeMillis();
         }
@@ -343,8 +272,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (keyboardStartTime > 0) {
             long duration = System.currentTimeMillis() - keyboardStartTime;
             if (duration > 0) {
-                long totalTime = prefs.getLong("total_usage_time", 0);
-                prefs.edit().putLong("total_usage_time", totalTime + duration).apply();
+                long totalTime = prefs.getLong(MainActivity.KEY_TOTAL_USAGE_TIME, 0);
+                prefs.edit().putLong(MainActivity.KEY_TOTAL_USAGE_TIME, totalTime + duration).apply();
             }
             keyboardStartTime = 0;
         }
@@ -623,10 +552,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         }
 
         classificationRunnable = () -> executorService.execute(() -> {
-            if (BuildConfig.DEBUG) {
-                Log.d("ToxicKeyboard", "Inference on context");
-            }
-
             // Normalize context for false positive check (remove punctuation)
             String cleanContext = contextText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
             
@@ -635,7 +560,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             if (substitutionEngine.isLoaded()) {
                 // We'll add a method to check if the context is explicitly whitelisted
                 if (isWhitelistedInEngine(contextText)) {
-                    Log.d("ToxicKeyboard", "Skipping alert: Explicitly whitelisted in substitutions.json");
                     if (isEndOfSentence) inputBuffer.setLength(0);
                     mainHandler.post(() -> updateSafeIndicator(true));
                     return;
@@ -643,7 +567,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             }
 
             if (falsePositivesSet.contains(cleanContext)) {
-                Log.d("ToxicKeyboard", "Skipping alert: Known false positive");
                 if (isEndOfSentence) inputBuffer.setLength(0);
                 mainHandler.post(() -> updateSafeIndicator(true));
                 return;
@@ -740,34 +663,11 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     private boolean isKnownResilient(String word) {
-        if (word == null || word.isEmpty()) return true;
-        String lower = word.toLowerCase().trim();
-        
-        // 1. Exact matches first
-        if (commonWords.contains(lower) || userDictionary.contains(lower)) return true;
-        if (substitutionEngine.isKnownWord(lower)) return true;
-
-        // 2. Skeleton match: "heyyy" -> "hey"
-        String skeleton = lower.replaceAll("(.)\\1+", "$1");
-        
-        // Check pre-calculated common skeletons
-        if (commonSkeletons != null && commonSkeletons.contains(skeleton)) return true;
-        
-        // Check user dictionary skeletons
-        if (userSkeletons.contains(skeleton)) return true;
-
-        return false;
+        return substitutionEngine.isKnownWord(word);
     }
 
     private boolean isToxicResilient(String word) {
-        if (word == null || word.isEmpty()) return false;
-        String lower = word.toLowerCase().trim();
-        if (toxicFeedbackSet.contains(lower)) return true;
-        
-        String skeleton = lower.replaceAll("(.)\\1+", "$1");
-        if (toxicSkeletons.contains(skeleton)) return true;
-        
-        return substitutionEngine.isToxicWord(lower);
+        return substitutionEngine.isToxicWord(word);
     }
 
     private WindowManager getOverlayWindowManager() {
@@ -778,7 +678,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     windowContext = createWindowContext(getDisplay(), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null);
                     overlayWindowManager = (WindowManager) windowContext.getSystemService(Context.WINDOW_SERVICE);
                 } catch (Exception e) {
-                    Log.e("ToxicKeyboard", "Failed to create window context on API 31+", e);
+                    android.util.Log.e("ToxicKeyboard", "Failed to create window context on API 31+", e);
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 try {
@@ -787,7 +687,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     windowContext = createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null);
                     overlayWindowManager = (WindowManager) windowContext.getSystemService(Context.WINDOW_SERVICE);
                 } catch (Exception e) {
-                    Log.e("ToxicKeyboard", "Failed to create window context on API 30", e);
+                    android.util.Log.e("ToxicKeyboard", "Failed to create window context on API 30", e);
                 }
             }
 
@@ -846,8 +746,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>()));
                 if (pending.add(cleanWord)) {
                     prefs.edit().putStringSet(KEY_USER_DICTIONARY, pending).apply();
-                    // Only upload if it's a new contribution
-                    uploadToFirebase(cleanWord, "safe", "unrecognized_prompt");
                 }
             }
             
@@ -867,8 +765,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, pending).apply();
                     // Immediately update the engine
                     loadToxicFeedback();
-                    // Only upload if it's a new contribution
-                    uploadToFirebase(cleanWord, "toxic", "unrecognized_prompt");
                 }
             }
 
@@ -892,7 +788,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         try {
             windowManager.addView(dialogView, params);
         } catch (Exception e) {
-            Log.e("ToxicKeyboard", "Error showing unrecognized alert", e);
+            android.util.Log.e("ToxicKeyboard", "Error showing unrecognized alert", e);
         }
     }
 
@@ -978,8 +874,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 java.util.Set<String> fpPending = new java.util.HashSet<>(prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>()));
                 if (fpPending.add(cleanContext)) {
                     prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, fpPending).apply();
-                    // Only upload if it's a new contribution
-                    uploadToFirebase(cleanContext, "safe", "false_positive_report");
                 }
             }
 
@@ -1020,7 +914,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         try {
             windowManager.addView(dialogView, params);
         } catch (Exception e) {
-            Log.e("ToxicKeyboard", "Error showing toxic alert", e);
+            android.util.Log.e("ToxicKeyboard", "Error showing toxic alert", e);
         }
     }
 
@@ -1159,24 +1053,4 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     @Override
     public void swipeUp() {}
 
-    private void uploadToFirebase(String text, String label, String type) {
-        try {
-            FirebaseFirestore db = FirebaseFirestore.getInstance();
-            Map<String, Object> data = new HashMap<>();
-            data.put("text", text);
-            data.put("label", label); // "safe" or "toxic"
-            data.put("type", type);   // "unrecognized_prompt" or "false_positive_report"
-            data.put("timestamp", FieldValue.serverTimestamp());
-            // Use hash of Android ID for anonymous but consistent user tracking
-            String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-            data.put("userId", androidId != null ? androidId.hashCode() : 0);
-
-            db.collection("feedback")
-                    .add(data)
-                    .addOnFailureListener(e -> Log.e("ToxicKeyboard", "Upload failed", e));
-        } catch (Exception e) {
-            // This might happen if google-services.json is missing or Firebase not initialized
-            Log.e("ToxicKeyboard", "Firebase upload error: " + e.getMessage());
-        }
-    }
 }

@@ -11,8 +11,6 @@
     <string name="disclaimer_message">This keyboard uses Machine Learning to detect toxic language. To provide real-time feedback, it analyzes your keystrokes locally on this device. No data is sent to the cloud or stored externally.\n\nBy using this keyboard, you agree to this local monitoring for self-regulation purposes.</string>
     <string name="btn_agree">I Agree</string>
     <string name="btn_exit">Exit</string>
-    <string name="toast_filtering_enabled">Filtering Enabled</string>
-    <string name="toast_filtering_disabled">Filtering Disabled</string>
     <string name="toast_metrics_reset">Metrics reset</string>
     <string name="overlay_already_granted">Overlay permission already granted</string>
 
@@ -49,11 +47,9 @@
     <string name="language_disclaimer">Optimized for English text. Taglish/Tagalog support is experimental.</string>
     <string name="research_info_title">Scope &amp; Privacy Policy</string>
     <string name="research_info_message"><b>Scope:</b> This tool currently supports English text only. Analysis is performed locally on-device.\n\n<b>Self-Regulation:</b> This app is designed for behavioral self-regulation and follows ISO 25010 usability standards. It does not report your private messages to external parties.\n\n<b>Data:</b> Feedback data (if contributed) is anonymized and used only for model refinement.</string>
-    <string name="btn_export_metrics">Export Research Report</string>
-    <string name="toxicity_preview_format">Model Confidence: %1$.1f%% (%2$s)</string>
+    <string name="btn_export_metrics">upload Research Report</string>
     <string name="label_safe">Safe to type</string>
     <string name="label_toxic">Toxic language detected</string>
-    <string name="research_report_header">Toxic Keyboard Research Report\n------------------------------</string>
     <string name="label_queued_contributions">Queued Contributions:</string>
     <string name="upload_cooldown_message">You can only contribute once every minute. Please try again in %1$d seconds.</string>
     <string name="btn_upload_cooldown">Wait %1$ds to submit another</string>
@@ -83,7 +79,6 @@
     <string name="tutorial_step_9">Review and manage your pending contributions here.</string>
     <string name="tutorial_step_10">Tap an item to remove it from the upload queue.</string>
     <string name="tutorial_step_11">Upload your feedback to help improve our model.</string>
-    <string name="btn_tutorial_next">Got it</string>
     <string name="btn_tutorial_finish">Finish Tutorial</string>
     <string name="content_description_help">Help</string>
 </resources>

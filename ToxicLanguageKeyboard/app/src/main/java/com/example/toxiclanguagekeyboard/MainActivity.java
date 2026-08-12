@@ -9,10 +9,12 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.text.Editable;
@@ -55,15 +57,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvFeedbackStats;
     private View viewSettings;
     private View viewContribute;
-    private ToxicityClassifier classifier;
-    private TextView tvToxicityPreview;
-    private android.widget.ListView lvQueuedData;
-    private java.util.ArrayList<String> queuedItemsList = new java.util.ArrayList<>();
-    private android.widget.ArrayAdapter<String> queuedAdapter;
-    private android.widget.Button btnUploadFeedback;
-    private android.widget.Button btnSkipTutorial;
+    private ListView lvQueuedData;
+    private java.util.List<String> queuedItemsList = new java.util.ArrayList<>();
+    private ArrayAdapter<String> queuedAdapter;
+    private Button btnUploadFeedback;
+    private Button btnSkipTutorial;
     private TapTargetSequence activeSequence;
-    private int currentTutorialStep = 0;
     
     private Button btnEnable;
     private Button btnSelect;
@@ -73,8 +72,9 @@ public class MainActivity extends AppCompatActivity {
     private Button btnClearDict;
     private Button btnExport;
     private Button btnPrivacyInfo;
-    private android.widget.ImageButton btnHelp;
+    private ImageButton btnHelp;
     private com.google.android.material.tabs.TabLayout tabLayout;
+    private int currentTutorialStep;
 
     private final android.os.Handler cooldownHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable cooldownRunnable = new Runnable() {
@@ -152,10 +152,9 @@ public class MainActivity extends AppCompatActivity {
         });
         
         EditText etTest = findViewById(R.id.et_test);
-        tvToxicityPreview = findViewById(R.id.tv_toxicity_preview);
         lvQueuedData = findViewById(R.id.lv_queued_data);
         
-        queuedAdapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_list_item_1, queuedItemsList);
+        queuedAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, queuedItemsList);
         lvQueuedData.setAdapter(queuedAdapter);
 
         lvQueuedData.setOnItemClickListener((parent, view, position, id) -> {
@@ -169,8 +168,6 @@ public class MainActivity extends AppCompatActivity {
                     .setNegativeButton("Cancel", null)
                     .show();
         });
-        
-        classifier = new ToxicityClassifier(this);
 
         // Tab Logic
         tabLayout.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
@@ -507,14 +504,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateLiveToxicity(String text) {
-        if (text.isEmpty()) {
-            tvToxicityPreview.setText(getString(R.string.toxicity_preview_format, 0.0, getString(R.string.label_safe)));
-            return;
-        }
-        double prob = classifier.calculateProbability(text);
-        String label = prob > 0.5 ? getString(R.string.label_toxic) : getString(R.string.label_safe);
-        tvToxicityPreview.setText(getString(R.string.toxicity_preview_format, prob * 100, label));
-        tvToxicityPreview.setTextColor(prob > 0.5 ? 0xFFFF0000 : 0xFF757575);
+        // Method kept for logic but UI preview removed per cleanup task
     }
 
     private void exportResearchReport() {
@@ -572,8 +562,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         JSONObject payload = createUploadPayload(safe, toxic, falsePos);
-        android.util.Log.d("ToxicKeyboard", "Payload prepared: " + payload);
-
         Toast.makeText(this, "Connecting to secure server...", Toast.LENGTH_SHORT).show();
 
         // Use Firestore to upload the bulk payload as a single contribution document

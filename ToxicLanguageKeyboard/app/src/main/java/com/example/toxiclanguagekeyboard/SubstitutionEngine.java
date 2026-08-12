@@ -28,6 +28,62 @@ public class SubstitutionEngine {
     
     private java.util.Set<String> dynamicToxicWords = new java.util.HashSet<>();
     private java.util.Set<String> dynamicToxicSkeletons = new java.util.HashSet<>();
+    private java.util.Set<String> dynamicSafeWords = new java.util.HashSet<>();
+    private java.util.Set<String> dynamicSafeSkeletons = new java.util.HashSet<>();
+    private static final java.util.Set<String> COMMON_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "a", "about", "above", "across", "after", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "an", "and", "another", "any", "anybody", "anyone", "anything", "anywhere", "are", "area", "around", "as", "ask", "at", "away",
+        "back", "be", "became", "because", "become", "becomes", "been", "before", "began", "begin", "behind", "being", "below", "beside", "best", "better", "between", "big", "both", "boy", "but", "by",
+        "call", "came", "can", "cannot", "can't", "car", "certain", "change", "child", "children", "city", "close", "come", "could", "couldn't", "country", "course", "cut",
+        "day", "did", "didn't", "do", "does", "doesn't", "dog", "done", "don't", "door", "down", "during",
+        "each", "early", "earth", "eat", "either", "else", "end", "enough", "even", "ever", "every", "everybody", "everyone", "everything", "everywhere", "eye",
+        "face", "fact", "far", "father", "feel", "few", "find", "fire", "first", "five", "for", "four", "from", "front", "full",
+        "gave", "get", "girl", "give", "given", "go", "good", "got", "great", "group", "grow",
+        "had", "hadn't", "half", "hand", "has", "hasn't", "have", "haven't", "he", "head", "hear", "heard", "help", "her", "here", "hers", "herself", "he's", "high", "him", "himself", "his", "home", "house", "how", "however",
+        "i", "if", "important", "in", "interest", "into", "is", "isn't", "it", "its", "it's", "itself",
+        "just", "keep", "kind", "knew", "know", "known",
+        "land", "large", "last", "later", "learn", "leave", "left", "less", "let", "letter", "life", "light", "like", "line", "little", "live", "long", "look", "love", "low",
+        "made", "make", "man", "many", "may", "maybe", "me", "mean", "men", "might", "mile", "miss", "more", "most", "mother", "mountain", "move", "much", "must", "my", "myself",
+        "name", "near", "need", "never", "new", "next", "night", "no", "not", "nothing", "now", "number",
+        "of", "off", "often", "oh", "old", "on", "once", "one", "only", "open", "or", "order", "other", "others", "our", "out", "over", "own",
+        "page", "paper", "part", "past", "people", "perhaps", "person", "place", "play", "point", "present", "public", "put",
+        "question", "quite",
+        "read", "real", "really", "right", "room", "run",
+        "said", "same", "saw", "say", "school", "sea", "second", "see", "seem", "seemed", "sentence", "set", "several", "she", "she's", "short", "should", "show", "side", "since", "small", "so", "some", "somebody", "someone", "something", "somewhere", "soon", "sound", "still", "story", "study", "such", "sure",
+        "take", "tell", "than", "thank", "thanks", "that", "that's", "the", "their", "them", "themselves", "then", "there", "therefore", "these", "they", "thing", "think", "this", "those", "though", "thought", "three", "through", "time", "to", "together", "too", "took", "toward", "turn", "two",
+        "under", "until", "up", "upon", "us", "use", "used",
+        "very",
+        "walk", "want", "was", "wasn't", "water", "way", "we", "well", "went", "were", "weren't", "what", "what's", "when", "where", "whether", "which", "while", "white", "who", "whole", "whom", "whose", "why", "will", "with", "within", "without", "word", "work", "world", "would", "wouldn't", "write",
+        "year", "yet", "you", "young", "your", "yours", "yourself", "yourselves", "you're",
+        "hi", "hello", "hey", "heyy", "heya", "yo", "sup", "please", "sorry", "yes", "ok", "okay", "yeah", "yep", "yup", "thanks", "welcome", "howdy", "goodbye", "bye", "test", "testing", "message", "type", "keyboard", "input",
+            "today", "tomorrow", "yesterday", "morning", "afternoon", "evening", "night", "week", "month", "year", "time", "hour", "minute", "second",
+            "happy", "sad", "angry", "excited", "bored", "tired", "hungry", "thirsty", "good", "bad", "better", "best", "worse", "worst",
+            "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "gray", "grey",
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+            "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million",
+            "can", "could", "will", "would", "shall", "should", "may", "might", "must", "ought", "need", "dare",
+            "am", "is", "are", "was", "were", "be", "being", "been", "have", "has", "had", "do", "does", "did",
+            "doing", "done", "having", "going", "gone", "coming", "come", "taking", "taken", "making", "made",
+            "using", "used", "finding", "found", "giving", "given", "telling", "told", "working", "worked",
+            "calling", "called", "trying", "tried", "asking", "asked", "needing", "needed", "feeling", "felt",
+            "looking", "looked", "becoming", "became", "leaving", "left", "putting", "put", "meaning", "meant",
+            "keep", "kept", "let", "begin", "begun", "began", "show", "shown", "hear", "heard", "play", "played",
+            "run", "ran", "move", "moved", "live", "lived", "believe", "believed", "bring", "brought", "happen", "happened",
+            "write", "wrote", "written", "sit", "sat", "stand", "stood", "lose", "lost", "pay", "paid", "meet", "met",
+            "include", "included", "continue", "continued", "set", "learn", "learned", "change", "changed", "lead", "led",
+            "understand", "understood", "watch", "watched", "follow", "followed", "stop", "stopped", "create", "created",
+            "speak", "spoke", "spoken", "read", "allow", "allowed", "add", "added", "spend", "spent", "grow", "grew", "grown",
+            "open", "opened", "walk", "walked", "win", "won", "offer", "offered", "remember", "remembered", "love", "loved",
+            "consider", "considered", "appear", "appeared", "buy", "bought", "wait", "waited", "serve", "served", "die", "died",
+            "send", "sent", "expect", "expected", "build", "built", "stay", "stayed", "fall", "fell", "fallen", "cut",
+            "reach", "reached", "kill", "killed", "remain", "remained"
+    ));
+    private static final java.util.Set<String> COMMON_SKELETONS;
+    static {
+        COMMON_SKELETONS = new java.util.HashSet<>();
+        for (String w : COMMON_WORDS) {
+            COMMON_SKELETONS.add(w.replaceAll("(.)\\1+", "$1"));
+        }
+    }
     
     private boolean isLoaded = false;
 
@@ -89,7 +145,7 @@ public class SubstitutionEngine {
                 sortedSubstitutionKeys = tempSortedKeys;
                 isLoaded = true;
             } catch (Exception e) {
-                e.printStackTrace();
+                android.util.Log.e("SubstitutionEngine", "Error loading substitutions", e);
             }
         }).start();
     }
@@ -103,6 +159,14 @@ public class SubstitutionEngine {
         this.dynamicToxicSkeletons.clear();
         for (String w : words) {
             dynamicToxicSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
+        }
+    }
+
+    public void setDynamicSafeWords(java.util.Set<String> words) {
+        this.dynamicSafeWords = new java.util.HashSet<>(words);
+        this.dynamicSafeSkeletons.clear();
+        for (String w : words) {
+            dynamicSafeSkeletons.add(w.toLowerCase().replaceAll("(.)\\1+", "$1"));
         }
     }
 
@@ -273,9 +337,9 @@ public class SubstitutionEngine {
     public boolean isKnownWord(String word) {
         if (word == null) return false;
         String lower = word.toLowerCase().trim();
-        if (substitutions.containsKey(lower)) return true;
+        if (substitutions.containsKey(lower) || dynamicSafeWords.contains(lower) || COMMON_WORDS.contains(lower)) return true;
 
         String skeleton = lower.replaceAll("(.)\\1+", "$1");
-        return knownSkeletons.contains(skeleton);
+        return knownSkeletons.contains(skeleton) || dynamicSafeSkeletons.contains(skeleton) || COMMON_SKELETONS.contains(skeleton);
     }
 }

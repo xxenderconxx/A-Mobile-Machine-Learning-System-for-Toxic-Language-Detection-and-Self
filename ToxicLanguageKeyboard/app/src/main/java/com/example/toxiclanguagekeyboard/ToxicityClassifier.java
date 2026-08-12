@@ -30,7 +30,7 @@ public class ToxicityClassifier {
                 InputStream is = context.getAssets().open("model_weights.json");
                 loadModelFromStream(is);
             } catch (Exception e) {
-                e.printStackTrace();
+                android.util.Log.e("ToxicityClassifier", "Error loading model async", e);
             }
         }).start();
     }
@@ -54,11 +54,15 @@ public class ToxicityClassifier {
             }
             isLoaded = true;
         } catch (Exception e) {
-            e.printStackTrace();
+            android.util.Log.e("ToxicityClassifier", "Error loading model from stream", e);
         }
     }
 
     public boolean isLoaded = false;
+
+    public boolean isLoaded() {
+        return isLoaded;
+    }
 
     private String normalizeText(String text) {
         if (text == null) return "";

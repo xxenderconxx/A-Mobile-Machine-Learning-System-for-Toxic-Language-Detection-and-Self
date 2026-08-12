@@ -32,7 +32,6 @@ public class OnboardingActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("ToxicKeyboardPrefs", MODE_PRIVATE);
-        android.util.Log.d("ToxicKeyboard", "OnboardingActivity onCreate. has_completed_tutorial: " + prefs.getBoolean("has_completed_tutorial", false));
         if (prefs.getBoolean("has_completed_tutorial", false)) {
             startActivity(new Intent(this, MainActivity.class));
             finish();

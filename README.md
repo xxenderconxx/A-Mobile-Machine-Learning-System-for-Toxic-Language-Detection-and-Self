@@ -100,7 +100,7 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 ```
 .
 ├── ToxicDetectionML/           # Python ML training & dataset module
-│   ├── optimized_weights_v8.json # Production pruned weights payload
+│   ├── optimized_weights_v9.json # Production pruned weights payload
 │   ├── sample_submission.csv
 │   ├── test.csv                # Testing dataset samples
 │   ├── test_labels.csv         # Ground-truth evaluation labels

@@ -33,32 +33,29 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 ## 🏗️ System Architecture
 
 ```
-                                  ┌────────────────────────┐
-                                  │       User Input       │
-                                  └───────────┬────────────┘
+┌─────────────────────┐      ┌───────────────────────────┐
+│     USER INPUT      │      │     SECURITY FILTERS      │
+│ (Raw Keystrokes)    ├─────►│ • EditorInfo (Passwords)  │
+└──────────┬──────────┘      │ • Regex (Emails/URLs)     │
+          │                  └─────────────┬─────────────┘
+          ▼                                │
+┌─────────────────────┐                    │ Bypass if match
+│    INPUT BUFFER     │◄───────────────────┘
+│ (StringBuilder)     │
+└──────────┬──────────┘
+           │
+           ▼
+┌───────────────────────────┐      ┌───────────────────────────┐
+│   TOXICITY CLASSIFIER     │      │    SUBSTITUTION ENGINE    │
+│                           │      │                           │
+│ 1. Normalization          │      │ 1. Word/Skeleton Lookup   │
+│ 2. Feature Extraction     ├─────►│ 2. Phrase Matching        │
+│    (TF-IDF / Entity)      │      │ 3. Sentence Reframing     │
+│ 3. Logistic Regression    │      │ 4. Grammar Post-Process   │
+└───────────────────────────┘      └──────────┬─────────────┘
                                               │
                                               ▼
-                                  ┌────────────────────────┐
-                                  │   Text Preprocessing   │
-                                  └───────────┬────────────┘
-                                              │
-                                              ▼
-                                  ┌────────────────────────┐
-                                  │ TFLite On-Device Model │
-                                  └───────────┬────────────┘
-                                              │
-                                              ▼
-                                  ┌────────────────────────┐
-                                  │ Toxicity Classification│
-                                  └───────────┬────────────┘
-                                              │
-                                              ▼
-                                  ┌────────────────────────┐
-                                  │ Feedback & Self-Mod    │
-                                  │         Prompt         │
-                                  └───────────┬────────────┘
-                                              │
-                       ┌──────────────────────┴──────────────────────┐
+                       ┌─────────────────────────────────────────────┐
                        │                                             │
                        ▼                                             ▼
             [User Accepts / Revises]                   [User Corrects / Flags]

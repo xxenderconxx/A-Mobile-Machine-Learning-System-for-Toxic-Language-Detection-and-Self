@@ -219,9 +219,67 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     private void setupEmojiPanel(View root) {
-        // Simple initialization for Emoji view panel
-        if (emojiPanelView != null) {
-            emojiPanelView.setVisibility(View.GONE);
+        if (emojiPanelView == null) return;
+
+        androidx.recyclerview.widget.RecyclerView recyclerView = emojiPanelView.findViewById(R.id.emoji_recycler);
+        recyclerView.setLayoutManager(new androidx.recyclerview.widget.GridLayoutManager(this, 7));
+        
+        emojiAdapter = new EmojiAdapter(new ArrayList<>(), emoji -> {
+            InputConnection ic = getCurrentInputConnection();
+            if (ic != null) {
+                ic.commitText(emoji, 1);
+                // Add to recent emojis
+                if (!recentEmojis.contains(emoji)) {
+                    recentEmojis.add(0, emoji);
+                    if (recentEmojis.size() > 50) recentEmojis.remove(recentEmojis.size() - 1);
+                    prefs.edit().putString("recent_emojis", android.text.TextUtils.join(",", recentEmojis)).apply();
+                }
+            }
+        });
+        recyclerView.setAdapter(emojiAdapter);
+
+        // Category Buttons
+        LinearLayout categories = emojiPanelView.findViewById(R.id.emoji_categories);
+        Map<String, List<String>> allEmojis = EmojiLibrary.getCategorizedEmojis(null);
+        List<String> categoryNames = new ArrayList<>(allEmojis.keySet());
+        
+        for (int i = 0; i < categories.getChildCount(); i++) {
+            View child = categories.getChildAt(i);
+            if (child instanceof ImageButton) {
+                final int index = i;
+                child.setOnClickListener(v -> {
+                    if (index == 0) {
+                        emojiAdapter.updateData(recentEmojis);
+                    } else if (index - 1 < categoryNames.size()) {
+                        emojiAdapter.updateData(allEmojis.get(categoryNames.get(index - 1)));
+                    }
+                });
+            }
+        }
+
+        // Action Buttons
+        emojiPanelView.findViewById(R.id.btn_emoji_back).setOnClickListener(v -> hideEmojiPanel());
+        emojiPanelView.findViewById(R.id.btn_emoji_to_abc).setOnClickListener(v -> hideEmojiPanel());
+        emojiPanelView.findViewById(R.id.btn_emoji_del).setOnClickListener(v -> {
+            InputConnection ic = getCurrentInputConnection();
+            if (ic != null) {
+                CharSequence before = ic.getTextBeforeCursor(2, 0);
+                if (before != null && before.length() > 0) {
+                    int deleteCount = 1;
+                    if (before.length() == 2 && Character.isSurrogatePair(before.charAt(0), before.charAt(1))) {
+                        deleteCount = 2;
+                    }
+                    ic.deleteSurroundingText(deleteCount, 0);
+                }
+            }
+        });
+
+        // Default data
+        if (!recentEmojis.isEmpty()) {
+            emojiAdapter.updateData(recentEmojis);
+        } else {
+            List<String> all = EmojiLibrary.getAllEmojis(null);
+            emojiAdapter.updateData(all.subList(0, Math.min(all.size(), 100)));
         }
 
         emojiPanelView.setVisibility(View.GONE);
@@ -476,6 +534,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         } else {
             ic.commitText(" ", 1);
             inputBuffer.append(" ");
+            checkToxicityAsync(false);
         }
         lastSpaceClickTime = now;
     }
@@ -658,7 +717,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 inputBuffer.setLength(0);
             }
         });
-
+        
         mainHandler.postDelayed(classificationRunnable, 300);
     }
 
@@ -762,6 +821,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     // Replace the last few words with the suggestion
                     ic.deleteSurroundingText(toxicText.length(), 0);
                     ic.commitText(suggestion, 1);
+                    
+                    // Update inputBuffer to reflect the change
+                    inputBuffer.setLength(Math.max(0, inputBuffer.length() - toxicText.length()));
+                    inputBuffer.append(suggestion);
                 }
                 prefs.edit().putInt(KEY_COUNT_EDITS, prefs.getInt(KEY_COUNT_EDITS, 0) + 1).apply();
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
@@ -778,8 +841,9 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (btnFalsePositive != null) {
             btnFalsePositive.setOnClickListener(v -> {
                 String cleanContext = toxicText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
-                falsePositivesSet.add(cleanContext);
-                prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, falsePositivesSet).apply();
+                java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>()));
+                pending.add(cleanContext);
+                prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, pending).apply();
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
             });
         }
@@ -818,6 +882,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         TextView messageView = dialogView.findViewById(R.id.unrecognized_message);
         Button btnIgnore = dialogView.findViewById(R.id.btn_ignore);
         Button btnAdd = dialogView.findViewById(R.id.btn_add_to_dictionary);
+        Button btnMarkToxic = dialogView.findViewById(R.id.btn_mark_toxic);
+        Button btnEditWord = dialogView.findViewById(R.id.btn_edit_word);
 
         if (messageView != null) {
             messageView.setText("Unrecognized word: " + word);
@@ -831,8 +897,29 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         if (btnAdd != null) {
             btnAdd.setOnClickListener(v -> {
-                userDictionary.add(word);
-                prefs.edit().putStringSet(KEY_USER_DICTIONARY, userDictionary).apply();
+                java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>()));
+                pending.add(word);
+                prefs.edit().putStringSet(KEY_USER_DICTIONARY, pending).apply();
+                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+            });
+        }
+
+        if (btnMarkToxic != null) {
+            btnMarkToxic.setOnClickListener(v -> {
+                java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
+                pending.add(word);
+                prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, pending).apply();
+                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+            });
+        }
+
+        if (btnEditWord != null) {
+            btnEditWord.setOnClickListener(v -> {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    ic.deleteSurroundingText(word.length(), 0);
+                    inputBuffer.setLength(Math.max(0, inputBuffer.length() - word.length()));
+                }
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
             });
         }

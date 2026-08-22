@@ -31,18 +31,14 @@ public class EmojiAdapter extends RecyclerView.Adapter<EmojiAdapter.EmojiViewHol
     @NonNull
     @Override
     public EmojiViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(android.R.layout.simple_list_item_1, parent, false);
-        // Custom styling for emoji display
-        TextView textView = (TextView) view.findViewById(android.R.id.text1);
-        textView.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
-        textView.setTextSize(24);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_emoji, parent, false);
         return new EmojiViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull EmojiViewHolder holder, int position) {
         String emoji = emojis.get(position);
-        ((TextView) holder.itemView.findViewById(android.R.id.text1)).setText(emoji);
+        holder.emojiText.setText(emoji);
         holder.itemView.setOnClickListener(v -> listener.onEmojiClick(emoji));
     }
 
@@ -52,8 +48,11 @@ public class EmojiAdapter extends RecyclerView.Adapter<EmojiAdapter.EmojiViewHol
     }
 
     static class EmojiViewHolder extends RecyclerView.ViewHolder {
+        TextView emojiText;
+
         EmojiViewHolder(@NonNull View itemView) {
             super(itemView);
+            emojiText = itemView.findViewById(R.id.emoji_text);
         }
     }
 }

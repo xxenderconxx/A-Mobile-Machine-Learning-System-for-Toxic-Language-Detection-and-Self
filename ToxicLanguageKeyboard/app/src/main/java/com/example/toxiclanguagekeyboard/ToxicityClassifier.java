@@ -1,192 +1,204 @@
 package com.example.toxiclanguagekeyboard;
 
 import android.content.Context;
+import android.util.Log;
 import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 public class ToxicityClassifier {
 
-    private Map<String, Double> weights = new HashMap<>();
+    private static final String TAG = "ToxicityClassifier";
+
+    private static class FeatureMeta {
+        final double weight;
+        final double idf;
+
+        FeatureMeta(double weight, double idf) {
+            this.weight = weight;
+            this.idf = idf;
+        }
+    }
+
+    private final Map<String, FeatureMeta> weights = new HashMap<>();
     private double intercept = 0.0;
+    private double defaultThreshold = 0.70;
+    private boolean isLoaded = false;
 
     public ToxicityClassifier(Context context) {
         loadModelAsync(context);
     }
 
-    /**
-     * Constructor for testing/benchmarking without Android Context.
-     */
     public ToxicityClassifier(InputStream inputStream) {
         loadModelFromStream(inputStream);
     }
 
     private void loadModelAsync(Context context) {
         new Thread(() -> {
-            try {
-                InputStream is = context.getAssets().open("model_weights.json");
+            try (InputStream is = context.getAssets().open("model_weights.json")) {
                 loadModelFromStream(is);
             } catch (Exception e) {
-                android.util.Log.e("ToxicityClassifier", "Error loading model async", e);
+                Log.e(TAG, "Error loading model async", e);
             }
         }).start();
     }
 
-    private void loadModelFromStream(InputStream is) {
+    public synchronized void loadModelFromStream(InputStream is) {
         try {
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            String json = new String(buffer, StandardCharsets.UTF_8);
+            // Read complete stream into memory (fixes is.available() truncation bug)
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            int nRead;
+            byte[] data = new byte[16384];
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            buffer.flush();
+
+            String json = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
             JSONObject jsonObject = new JSONObject(json);
 
             intercept = jsonObject.optDouble("intercept", 0.0);
+            defaultThreshold = jsonObject.optDouble("threshold", 0.70);
+
             JSONObject weightsJson = jsonObject.getJSONObject("weights");
             Iterator<String> keys = weightsJson.keys();
 
+            weights.clear();
             while (keys.hasNext()) {
                 String key = keys.next();
-                weights.put(key.toLowerCase(), weightsJson.getDouble(key));
+                JSONObject item = weightsJson.getJSONObject(key);
+                double w = item.getDouble("w");
+                double idf = item.getDouble("idf");
+                weights.put(key, new FeatureMeta(w, idf));
             }
             isLoaded = true;
         } catch (Exception e) {
-            android.util.Log.e("ToxicityClassifier", "Error loading model from stream", e);
+            Log.e(TAG, "Error parsing model_weights.json", e);
         }
     }
-
-    public boolean isLoaded = false;
 
     public boolean isLoaded() {
         return isLoaded;
     }
 
-    private String normalizeText(String text) {
+    public String normalizeText(String text) {
         if (text == null) return "";
-        
-        // REQ-2.1: Ignore Email addresses and URLs (often part of signatures/technical text)
-        String filtered = text.replaceAll("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+", " ")
-                             .replaceAll("https?://\\S+\\s?", " ");
-
-        // Obfuscation Handling: Replace common character substitutions
-        String normalized = filtered.toLowerCase()
-                .replace("$", "s")
-                .replace("@", "a")
-                .replace("!", "i")
-                .replace("1", "i")
+        String lower = text.toLowerCase(Locale.ENGLISH);
+        lower = lower.replaceAll("\\d+px|style=.*|#\\w+|color\\s\\w+", "");
+        lower = lower.replaceAll("(.)\\1{2,}", "$1");
+        lower = lower.replace("@", "a")
                 .replace("0", "o")
+                .replace("1", "i")
                 .replace("3", "e")
-                .replace("4", "a")
-                .replace("5", "s")
-                .replace("8", "b")
-                .replace("7", "t")
-                .replace("+", "t")
-                .replace("*", "")  // Remove asterisks used in obfuscation (e.g., f*ck -> fck)
-                .replace("_", "")
-                .replace("-", "");
-        
-        return normalized.replaceAll("[^a-z\\s]", "").trim();
+                .replace("$", "s")
+                .replace("!", "i");
+        String cleaned = lower.replaceAll("[^a-z\\s]", " ");
+        return cleaned.trim().replaceAll("\\s+", " ");
     }
 
-    /**
-     * REQ-2.2: Entity-Aware Feature Extraction
-     * Identifies if the text targets a specific person, group, or proper noun.
-     */
-    private double extractEntityFeatures(String originalText, String[] normalizedWords) {
-        boolean targetsPerson = false;
-        boolean targetsGroup = false;
-        boolean targetsProperNoun = false;
+    private Map<String, Integer> extractAllFeatures(String cleanedText, boolean useEntityFeatures) {
+        Map<String, Integer> counts = new HashMap<>();
+        if (cleanedText.isEmpty()) return counts;
 
-        // 1. Detect Proper Nouns (Heuristic: Capitalized words not at start of sentence)
-        String[] originalWords = originalText.trim().split("\\s+");
-        for (int i = 1; i < originalWords.length; i++) {
-            if (originalWords[i].length() > 0 && Character.isUpperCase(originalWords[i].charAt(0))) {
-                targetsProperNoun = true;
-                break;
+        // 1. Word Unigrams & Bigrams
+        String[] words = cleanedText.split("\\s+");
+        List<String> validWords = new ArrayList<>();
+        for (String w : words) {
+            if (!w.isEmpty()) validWords.add(w);
+        }
+
+        for (int i = 0; i < validWords.size(); i++) {
+            String word = validWords.get(i);
+            counts.put(word, counts.getOrDefault(word, 0) + 1);
+
+            if (i < validWords.size() - 1) {
+                String bigram = word + " " + validWords.get(i + 1);
+                counts.put(bigram, counts.getOrDefault(bigram, 0) + 1);
             }
         }
 
-        // 2. Detect Target Pronouns/Entities
-        java.util.Set<String> personTokens = new java.util.HashSet<>(java.util.Arrays.asList(
-                "you", "u", "he", "she", "him", "her", "yourself", "yourselves"
-        ));
-        java.util.Set<String> groupTokens = new java.util.HashSet<>(java.util.Arrays.asList(
-                "they", "them", "people", "everyone", "group", "all", "those"
-        ));
-
-        for (String word : normalizedWords) {
-            if (personTokens.contains(word)) targetsPerson = true;
-            if (groupTokens.contains(word)) targetsGroup = true;
+        // 2. Character Boundary N-grams (3 to 5 chars) matching analyzer='char_wb'
+        String padded = " " + cleanedText + " ";
+        int len = padded.length();
+        for (int n = 3; n <= 5; n++) {
+            for (int i = 0; i <= len - n; i++) {
+                String ngram = padded.substring(i, i + n);
+                String charKey = "char_" + ngram;
+                counts.put(charKey, counts.getOrDefault(charKey, 0) + 1);
+            }
         }
 
-        // Apply weights for targeted hostility
-        if (targetsPerson && targetsProperNoun) return 1.45; // Targeted individual attack
-        if (targetsPerson) return 1.3;  // General personal attack
-        if (targetsGroup) return 1.2;   // Group hostility
-        if (targetsProperNoun) return 1.1; // Mention of specific entity
-        
-        return 1.0;
-    }
+        // 3. Entity Features (Toggled by parameter for ablation tests)
+        if (useEntityFeatures) {
+            Set<String> personTokens = new HashSet<>(Arrays.asList("you", "u", "he", "she", "him", "her", "yourself"));
+            Set<String> groupTokens = new HashSet<>(Arrays.asList("they", "them", "people", "everyone", "group"));
 
-    public boolean isToxic(String text) {
-        return isToxic(text, true);
-    }
+            boolean hasPerson = false;
+            boolean hasGroup = false;
 
-    public boolean isToxic(String text, boolean useEntityFeatures) {
-        if (!isLoaded || text == null || text.trim().isEmpty()) return false;
+            for (String w : validWords) {
+                if (personTokens.contains(w)) hasPerson = true;
+                if (groupTokens.contains(w)) hasGroup = true;
+            }
 
-        String cleaned = normalizeText(text);
-        if (cleaned.isEmpty()) return false;
+            if (hasPerson) counts.put("__ent_person__", 1);
+            if (hasGroup) counts.put("__ent_group__", 1);
+        }
 
-        String[] words = cleaned.split("\\s+");
-        int wordCount = words.length;
-
-        // Use original text for entity detection to preserve capitalization
-        double probability = calculateProbability(text, useEntityFeatures);
-        
-        // Threshold chosen to balance Precision and Recall for V9 weights.
-        // Peak F1 at 0.90 is too high for a safety feature (Recall would be too low).
-        // 0.45 offers F1 ~56% with Recall ~80%, providing a good safety margin.
-        double threshold = (wordCount >= 3) ? 0.45 : 0.55;
-
-        return probability >= threshold;
+        return counts;
     }
 
     public double calculateProbability(String text) {
-        return calculateProbability(text, true);
+        return calculateProbability(text, false, false);
     }
 
-    public double calculateProbability(String text, boolean useEntityFeatures) {
-        if (text == null || text.isEmpty()) return 0.0;
-        
+    public double calculateProbability(String text, boolean useEntityFeatures, boolean isProfessionalContext) {
+        if (text == null || text.trim().isEmpty()) return 0.0;
+
         String cleaned = normalizeText(text);
         if (cleaned.isEmpty()) return 0.0;
 
-        double score = intercept;
-        String[] words = cleaned.split("\\s+");
+        Map<String, Integer> tokenCounts = extractAllFeatures(cleaned, useEntityFeatures);
 
-        for (int i = 0; i < words.length; i++) {
-            // Unigram
-            if (weights.containsKey(words[i])) {
-                score += weights.get(words[i]);
-            }
-            // Bigram
-            if (i < words.length - 1) {
-                String bigram = words[i] + " " + words[i+1];
-                if (weights.containsKey(bigram)) {
-                    score += weights.get(bigram);
-                }
+        double dotProduct = 0.0;
+        double sumSquaredTfidf = 0.0;
+
+        for (Map.Entry<String, Integer> entry : tokenCounts.entrySet()) {
+            String token = entry.getKey();
+            int count = entry.getValue();
+
+            FeatureMeta meta = weights.get(token);
+            if (meta != null) {
+                // Sublinear TF Scaling: 1 + ln(tf)
+                double tf = 1.0 + Math.log(count);
+                double tfidf = tf * meta.idf;
+
+                dotProduct += tfidf * meta.weight;
+                sumSquaredTfidf += tfidf * tfidf;
             }
         }
 
-        // Apply Entity-Aware Multiplier (REQ-2.2)
-        if (useEntityFeatures) {
-            score *= extractEntityFeatures(text, words);
+        double l2Norm = sumSquaredTfidf > 0 ? Math.sqrt(sumSquaredTfidf) : 1.0;
+        double score = intercept + (dotProduct / l2Norm);
+
+        // Adjust log-odds score in professional apps (e.g., Slack, LinkedIn) to lower false alarms
+        if (isProfessionalContext) {
+            score -= 0.25;
         }
 
         return 1.0 / (1.0 + Math.exp(-score));
+    }
+
+    public boolean isToxic(String text) {
+        return isToxic(text, false, false);
+    }
+
+    public boolean isToxic(String text, boolean useEntityFeatures, boolean isProfessionalContext) {
+        if (!isLoaded || text == null || text.trim().isEmpty()) return false;
+        double effectiveThreshold = isProfessionalContext ? (defaultThreshold - 0.05) : defaultThreshold;
+        return calculateProbability(text, useEntityFeatures, isProfessionalContext) >= effectiveThreshold;
     }
 }

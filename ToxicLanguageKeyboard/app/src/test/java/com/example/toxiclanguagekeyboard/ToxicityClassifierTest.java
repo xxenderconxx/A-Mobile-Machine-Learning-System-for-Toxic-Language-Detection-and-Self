@@ -50,11 +50,11 @@ public class ToxicityClassifierTest {
         
         // Wait for the background loading thread to complete
         int timeout = 20;
-        while (!classifier.isLoaded && timeout > 0) {
+        while (!classifier.isLoaded() && timeout > 0) {
             Thread.sleep(100);
             timeout--;
         }
-        assertTrue("Classifier failed to load weights", classifier.isLoaded);
+        assertTrue("Classifier failed to load weights", classifier.isLoaded());
     }
 
     @Test

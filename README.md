@@ -159,13 +159,13 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 
 ## 📊 Performance & Metrics
 
-| Metric | Target / Score |
+| Metric | Score |
 |---|---:|
-| **Inference Latency** | < 50ms |
-| **Accuracy** | XX% |
-| **Precision** | XX% |
-| **Recall** | XX% |
-| **F1-Score** | XX% |
+| **Inference Latency** | 0.23 ms |
+| **Accuracy** | 93.98% |
+| **Precision** | 68.98% |
+| **Recall** | 69.68% |
+| **F1-Score** | 69.33% |
 
 ---
 

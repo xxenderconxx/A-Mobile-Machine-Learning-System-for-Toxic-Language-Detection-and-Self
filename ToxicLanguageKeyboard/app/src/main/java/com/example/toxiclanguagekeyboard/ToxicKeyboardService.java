@@ -603,14 +603,38 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     private String getLastWords(String text, int maxWords) {
-        if (text == null || text.trim().isEmpty()) return "";
-        String[] words = text.trim().split("\\s+");
-        if (words.length <= maxWords) return text.trim();
-        StringBuilder sb = new StringBuilder();
-        for (int i = words.length - maxWords; i < words.length; i++) {
-            sb.append(words[i]).append(" ");
+        if (text == null || text.isEmpty()) return "";
+        
+        int wordCount = 0;
+        int i = text.length() - 1;
+        
+        // Find the end of the last word (skip trailing whitespace)
+        int lastWordEnd = i;
+        while (lastWordEnd >= 0 && Character.isWhitespace(text.charAt(lastWordEnd))) {
+            lastWordEnd--;
         }
-        return sb.toString().trim();
+        
+        if (lastWordEnd < 0) return text; // Only whitespace or empty
+        
+        int currentPos = lastWordEnd;
+        while (currentPos >= 0) {
+            // Find start of current word
+            while (currentPos >= 0 && !Character.isWhitespace(text.charAt(currentPos))) {
+                currentPos--;
+            }
+            wordCount++;
+            
+            if (wordCount == maxWords) {
+                return text.substring(currentPos + 1);
+            }
+            
+            // Move to previous word (skip whitespace between words)
+            while (currentPos >= 0 && Character.isWhitespace(text.charAt(currentPos))) {
+                currentPos--;
+            }
+        }
+        
+        return text;
     }
 
     private void checkToxicityAsync(boolean isEndOfSentence) {
@@ -818,13 +842,18 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             btnEdit.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) {
-                    // Replace the last few words with the suggestion
+                    // Replace the toxic text with the suggestion
                     ic.deleteSurroundingText(toxicText.length(), 0);
-                    ic.commitText(suggestion, 1);
+                    if (!suggestion.isEmpty()) {
+                        ic.commitText(suggestion, 1);
+                    }
                     
                     // Update inputBuffer to reflect the change
-                    inputBuffer.setLength(Math.max(0, inputBuffer.length() - toxicText.length()));
-                    inputBuffer.append(suggestion);
+                    int start = Math.max(0, inputBuffer.length() - toxicText.length());
+                    inputBuffer.delete(start, inputBuffer.length());
+                    if (!suggestion.isEmpty()) {
+                        inputBuffer.append(suggestion);
+                    }
                 }
                 prefs.edit().putInt(KEY_COUNT_EDITS, prefs.getInt(KEY_COUNT_EDITS, 0) + 1).apply();
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}

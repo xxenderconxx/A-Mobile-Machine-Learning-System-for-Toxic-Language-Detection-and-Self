@@ -207,13 +207,15 @@ public class SubstitutionEngine {
             
             // a. Check dynamic toxic words (user-marked)
             if (isDynamicToxic(clean)) {
-                replacement = "***"; 
+                replacement = ""; 
             } 
             // b. Check elongated toxic words
             else {
                 String skeleton = clean.replaceAll("(.)\\1+", "$1");
                 if (toxicSkeletons.contains(skeleton)) {
                     replacement = skeletonToReplacement.get(skeleton);
+                } else if (isDynamicToxic(skeleton)) { // check skeleton against dynamic list
+                     replacement = "";
                 }
             }
             
@@ -224,8 +226,15 @@ public class SubstitutionEngine {
                 String prefix = mStart.find() ? mStart.group(1) : "";
                 String suffix = mEnd.find() ? mEnd.group(1) : "";
                 
-                sb.append(prefix).append(replacement).append(suffix).append(" ");
-                changed = true;
+                String cleanReplacement = replacement.trim();
+                if (cleanReplacement.isEmpty()) {
+                    // Word was toxic but no replacement found, or was marked to be blank.
+                    // We don't append anything, effectively removing the word.
+                    changed = true;
+                } else {
+                    sb.append(prefix).append(replacement).append(suffix).append(" ");
+                    changed = true;
+                }
             } else {
                 sb.append(word).append(" ");
             }

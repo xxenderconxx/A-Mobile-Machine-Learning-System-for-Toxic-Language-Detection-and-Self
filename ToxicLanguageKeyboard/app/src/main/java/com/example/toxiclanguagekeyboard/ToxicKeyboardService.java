@@ -58,6 +58,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private static final long DOUBLE_TAP_TIMEOUT = 300;
     private final StringBuilder inputBuffer = new StringBuilder();
     private SubstitutionEngine substitutionEngine;
+    private VocabularyEngine vocabularyEngine;
     private ToxicityClassifier toxicityClassifier;
     private View safeIndicatorDot;
     private TextView safeIndicatorText;
@@ -93,6 +94,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     public void onCreate() {
         super.onCreate();
         substitutionEngine = new SubstitutionEngine(this);
+        vocabularyEngine = new VocabularyEngine(this);
+        executorService.execute(() -> vocabularyEngine.loadDictionary(this));
         toxicityClassifier = new ToxicityClassifier(this);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
@@ -729,41 +732,45 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 return;
             }
 
-            double probability = toxicityClassifier.calculateProbability(contextText, true, finalIsProfessional);
-            boolean isToxic = toxicityClassifier.isToxic(contextText, true, finalIsProfessional);
-
-            boolean containsManualToxic = false;
+            // STEP 1: Explicit Toxic Check (substitutions.json)
+            boolean hasExplicitToxic = false;
             String[] wordsInContext = cleanContext.split("\\s+");
 
             for (String w : wordsInContext) {
                 if (w.isEmpty()) continue;
                 if (isToxicResilient(w) && !userDictionary.contains(w)) {
-                    containsManualToxic = true;
+                    hasExplicitToxic = true;
+                    break;
                 }
             }
 
-            boolean shouldShowAlert = containsManualToxic;
-            if (!shouldShowAlert) {
-                if (isToxic) {
-                    shouldShowAlert = true;
-                } else if (substitutionEngine.containsToxicLanguage(contextText) && probability > 0.45) {
-                    shouldShowAlert = true;
-                }
+            // Also check for toxic phrases/skeletons via SubstitutionEngine
+            if (!hasExplicitToxic && substitutionEngine.containsToxicLanguage(contextText)) {
+                hasExplicitToxic = true;
             }
 
-            if (shouldShowAlert) {
+            // STEP 2: Evaluate ML Classifier
+            boolean isMlToxic = toxicityClassifier.isToxic(contextText, true, finalIsProfessional);
+
+            // If EITHER manual list OR ML classifier flags the text, halt and display Toxic Warning
+            if (hasExplicitToxic || isMlToxic) {
                 mainHandler.post(() -> {
                     updateSafeIndicator(false);
                     showToxicAlert(contextText);
                 });
-                return;
+                return; // STOP execution here. Do NOT process vocabulary checks.
             }
 
-            String rawLastWord = getLastWords(fullText, 1);
-            if (!rawLastWord.matches(PARTIAL_EMAIL_REGEX)) {
-                String cleanLastWord = rawLastWord.toLowerCase().replaceAll("[^a-z']", "");
-                if (!cleanLastWord.isEmpty() && isUnrecognized(cleanLastWord)) {
-                    mainHandler.post(() -> showUnrecognizedAlert(cleanLastWord));
+            // STEP 3: Fallback Vocabulary Check (Only reached when text is 100% NON-TOXIC)
+            for (String rawWord : wordsInContext) {
+                if (rawWord.isEmpty()) continue;
+
+                // Check if word is recognized by WordNet, User Dictionary, or common safe lists
+                if (isUnrecognized(rawWord)) {
+                    // Word is missing from all datasets -> Flag as Unknown Word
+                    mainHandler.post(() -> showUnrecognizedAlert(rawWord));
+                    // Break after first unrecognized word to avoid multiple dialogs
+                    break;
                 }
             }
 
@@ -799,6 +806,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         String lower = word.toLowerCase();
         if (isKnownResilient(lower)) return false;
         if (isToxicResilient(lower)) return false;
+        if (vocabularyEngine != null && vocabularyEngine.isLoaded() && vocabularyEngine.isKnownWord(lower)) return false;
+        if (vocabularyEngine != null && !vocabularyEngine.isLoaded()) return false; // Default to safe until loaded
         return true;
     }
 
@@ -878,7 +887,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                     if (!suggestion.isEmpty()) {
                         ic.commitText(suggestion, 1);
                     }
-                    
+
                     // Update inputBuffer to reflect the change
                     int start = Math.max(0, inputBuffer.length() - toxicText.length());
                     inputBuffer.delete(start, inputBuffer.length());

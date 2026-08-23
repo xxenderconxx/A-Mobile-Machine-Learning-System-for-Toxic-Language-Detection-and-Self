@@ -87,7 +87,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private static final String KEY_TOXIC_FEEDBACK_HISTORY = "toxic_feedback_history";
     private static final String KEY_FALSE_POSITIVES_FEEDBACK = "false_positives_feedback";
     private static final String KEY_FALSE_POSITIVES_FEEDBACK_HISTORY = "false_positives_history";
-    private static final String PARTIAL_EMAIL_REGEX = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*";
+    private static final String PARTIAL_EMAIL_REGEX = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}";
 
     @Override
     public void onCreate() {
@@ -487,7 +487,26 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 if (Character.isLetter(code) && isCaps) {
                     code = Character.toUpperCase(code);
                 }
-                inputBuffer.append(code);
+
+                EditorInfo currentInfo = getCurrentInputEditorInfo();
+                boolean isSensitive = false;
+                if (currentInfo != null) {
+                    int inputType = currentInfo.inputType;
+                    int classType = inputType & InputType.TYPE_MASK_CLASS;
+                    int variation = inputType & InputType.TYPE_MASK_VARIATION;
+                    isSensitive = (classType == InputType.TYPE_CLASS_TEXT && 
+                            (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                             variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                             variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                             variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+                             variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)) ||
+                            (classType == InputType.TYPE_CLASS_NUMBER && 
+                             variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+                }
+
+                if (!isSensitive) {
+                    inputBuffer.append(code);
+                }
                 ic.commitText(String.valueOf(code), 1);
                 if (isCaps && !isCapsLock) {
                     isCaps = false;
@@ -645,10 +664,22 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         EditorInfo info = getCurrentInputEditorInfo();
         if (info != null) {
-            int variation = info.inputType & InputType.TYPE_MASK_VARIATION;
-            if (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-                    variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
-                    variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD) {
+            int inputType = info.inputType;
+            int classType = inputType & InputType.TYPE_MASK_CLASS;
+            int variation = inputType & InputType.TYPE_MASK_VARIATION;
+
+            boolean isPassword = (classType == InputType.TYPE_CLASS_TEXT && 
+                    (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                     variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                     variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
+                    (classType == InputType.TYPE_CLASS_NUMBER && 
+                     variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+
+            boolean isEmailField = classType == InputType.TYPE_CLASS_TEXT && 
+                    (variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+                     variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS);
+
+            if (isPassword || isEmailField) {
                 if (isEndOfSentence) inputBuffer.setLength(0);
                 mainHandler.post(() -> updateSafeIndicator(true));
                 return;

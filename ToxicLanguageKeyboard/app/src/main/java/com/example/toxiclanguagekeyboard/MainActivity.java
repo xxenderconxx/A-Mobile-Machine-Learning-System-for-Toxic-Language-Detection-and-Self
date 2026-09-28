@@ -725,11 +725,11 @@ public class MainActivity extends AppCompatActivity {
         if (displayItem.startsWith("[TOXIC] ")) {
             originalText = displayItem.substring("[TOXIC] ".length());
             key = KEY_TOXIC_FEEDBACK;
-        } else if (displayItem.startsWith("[FALSE POSITIVE] ")) {
-            originalText = displayItem.substring("[FALSE POSITIVE] ".length());
+        } else if (displayItem.startsWith("[NOT HARMFUL] ")) {
+            originalText = displayItem.substring("[NOT HARMFUL] ".length());
             key = KEY_FALSE_POSITIVES_FEEDBACK;
-        } else if (displayItem.startsWith("[SAFE/NEW] ")) {
-            originalText = displayItem.substring("[SAFE/NEW] ".length());
+        } else if (displayItem.startsWith("[CLEAN CONTENT] ")) {
+            originalText = displayItem.substring("[CLEAN CONTENT] ".length());
             key = KEY_USER_DICTIONARY;
         } else {
             return;
@@ -766,8 +766,8 @@ public class MainActivity extends AppCompatActivity {
         // Update Queued Data List
         queuedItemsList.clear();
         for (String s : toxic) queuedItemsList.add("[TOXIC] " + s);
-        for (String s : falsePos) queuedItemsList.add("[FALSE POSITIVE] " + s);
-        for (String s : safe) queuedItemsList.add("[SAFE/NEW] " + s);
+        for (String s : falsePos) queuedItemsList.add("[NOT HARMFUL] " + s);
+        for (String s : safe) queuedItemsList.add("[CLEAN CONTENT] " + s);
         
         if (queuedItemsList.isEmpty()) {
             queuedItemsList.add("No data queued for review.");

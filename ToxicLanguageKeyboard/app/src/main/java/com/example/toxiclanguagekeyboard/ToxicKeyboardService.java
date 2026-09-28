@@ -70,6 +70,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable classificationRunnable;
     private String lastCheckedText = "";
+    private String lastIgnoredToxicText = "";
+    private String lastIgnoredUnrecognizedWord = "";
     private SharedPreferences prefs;
     private SharedPreferences encryptedPrefs;
     private WindowManager overlayWindowManager;
@@ -97,6 +99,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         vocabularyEngine = new VocabularyEngine(this);
         executorService.execute(() -> vocabularyEngine.loadDictionary(this));
         toxicityClassifier = new ToxicityClassifier(this);
+        substitutionEngine.setClassifier(toxicityClassifier);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
         try {
@@ -578,6 +581,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private void resetKeyboardState() {
         isCaps = false;
         isCapsLock = false;
+        lastIgnoredToxicText = "";
+        lastIgnoredUnrecognizedWord = "";
         if (qwertyKeyboard != null && keyboardView != null) {
             qwertyKeyboard.setShifted(false);
             keyboardView.setKeyboard(qwertyKeyboard);
@@ -754,16 +759,23 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
             // If EITHER manual list OR ML classifier flags the text, halt and display Toxic Warning
             if (hasExplicitToxic || isMlToxic) {
+                if (!lastIgnoredToxicText.isEmpty() && cleanContext.contains(lastIgnoredToxicText)) {
+                    // User already chose to proceed with this specific phrase in this context.
+                    mainHandler.post(() -> updateSafeIndicator(false));
+                    return;
+                }
+
                 mainHandler.post(() -> {
                     updateSafeIndicator(false);
                     showToxicAlert(contextText);
                 });
-                return; // STOP execution here. Do NOT process vocabulary checks.
+                return; // STOP execution here.
             }
 
             // STEP 3: Fallback Vocabulary Check (Only reached when text is 100% NON-TOXIC)
             for (String rawWord : wordsInContext) {
                 if (rawWord.isEmpty()) continue;
+                if (rawWord.equals(lastIgnoredUnrecognizedWord)) continue;
 
                 // Check if word is recognized by WordNet, User Dictionary, or common safe lists
                 if (isUnrecognized(rawWord)) {
@@ -902,6 +914,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         if (btnProceed != null) {
             btnProceed.setOnClickListener(v -> {
+                lastIgnoredToxicText = toxicText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
                 prefs.edit().putInt(KEY_COUNT_IGNORED, prefs.getInt(KEY_COUNT_IGNORED, 0) + 1).apply();
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
             });
@@ -960,6 +973,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
         if (btnIgnore != null) {
             btnIgnore.setOnClickListener(v -> {
+                lastIgnoredUnrecognizedWord = word;
                 try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
             });
         }

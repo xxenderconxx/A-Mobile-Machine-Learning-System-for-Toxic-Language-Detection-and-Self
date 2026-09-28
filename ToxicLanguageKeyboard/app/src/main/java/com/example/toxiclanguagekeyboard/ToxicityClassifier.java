@@ -196,6 +196,11 @@ public class ToxicityClassifier {
         return isToxic(text, false, false);
     }
 
+    public boolean isToxic(String text, double threshold) {
+        if (!isLoaded || text == null || text.trim().isEmpty()) return false;
+        return calculateProbability(text, false, false) >= threshold;
+    }
+
     public boolean isToxic(String text, boolean useEntityFeatures, boolean isProfessionalContext) {
         if (!isLoaded || text == null || text.trim().isEmpty()) return false;
         double effectiveThreshold = isProfessionalContext ? (defaultThreshold - 0.05) : defaultThreshold;

@@ -2,7 +2,7 @@
     <string name="app_name">Toxic Language Keyboard</string>
     <string name="keyboard_name">Toxic Keyboard</string>
     <string name="btn_edit">Edit</string>
-    <string name="btn_proceed">Proceed Anyway</string>
+    <string name="btn_proceed">Ignore &amp; Send</string>
     <string name="btn_enable_keyboard">1. Enable Keyboard</string>
     <string name="btn_select_keyboard">2. Select Keyboard</string>
     <string name="btn_overlay_permission">3. Grant Overlay Permission</string>
@@ -20,22 +20,22 @@
     <string name="btn_edit_word">Edit Word</string>
     <string name="btn_add">Safe</string>
     <string name="btn_mark_toxic">Toxic</string>
-    <string name="btn_false_positive">False Positive</string>
+    <string name="btn_false_positive">Mark as Safe</string>
     <string name="toast_word_marked_toxic">Word marked as toxic</string>
     <string name="toast_word_marked_safe">Word marked as safe</string>
-    <string name="toast_false_positive_reported">False positive reported</string>
-    <string name="btn_clear_dictionary">Clear Dictionary</string>
+    <string name="toast_false_positive_reported">Marked as safe</string>
+    <string name="btn_clear_dictionary">Delete Custom Words</string>
     <string name="toast_dictionary_cleared">User dictionary cleared</string>
 
     <string name="switch_filtering_label">Real-time Toxicity Filtering</string>
     <string name="stats_title">Self-Regulation Metrics</string>
     <string name="stats_format">Detections: %1$d | Edits: %2$d | Ignored: %3$d\nSelf-Correction Rate: %4$.1f%%</string>
-    <string name="btn_reset_metrics">Reset Metrics</string>
+    <string name="btn_reset_metrics">Start Over</string>
     <string name="tab_settings">Home</string>
     <string name="tab_contribute">Contribute</string>
     <string name="btn_upload">Upload Feedback</string>
-    <string name="feedback_stats_format">Pending Safe: %1$d | Toxic: %2$d | FP: %3$d</string>
-    <string name="feedback_stats_total">Total: %1$d Safe, %2$d Toxic, %3$d FP</string>
+    <string name="feedback_stats_format">Pending Safe: %1$d | Toxic: %2$d | Not Harmful: %3$d</string>
+    <string name="feedback_stats_total">Total: %1$d Safe, %2$d Toxic, %3$d Not Harmful</string>
     <string name="no_feedback_data">No feedback data to upload</string>
     <string name="feedback_uploaded">Feedback uploaded successfully</string>
     <string name="upload_confirmation_title">Upload Contribution?</string>

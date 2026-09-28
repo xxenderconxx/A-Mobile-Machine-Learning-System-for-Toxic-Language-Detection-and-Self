@@ -30,6 +30,7 @@ public class SubstitutionEngine {
     private java.util.Set<String> dynamicToxicSkeletons = new java.util.HashSet<>();
     private java.util.Set<String> dynamicSafeWords = new java.util.HashSet<>();
     private java.util.Set<String> dynamicSafeSkeletons = new java.util.HashSet<>();
+    private ToxicityClassifier classifier;
     private static final java.util.Set<String> COMMON_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
         "a", "about", "above", "across", "after", "again", "against", "all", "almost", "alone", "along", "already", "also", "although", "always", "am", "among", "an", "and", "another", "any", "anybody", "anyone", "anything", "anywhere", "are", "area", "around", "as", "ask", "at", "away",
         "back", "be", "became", "because", "become", "becomes", "been", "before", "began", "begin", "behind", "being", "below", "beside", "best", "better", "between", "big", "both", "boy", "but", "by",
@@ -73,9 +74,9 @@ public class SubstitutionEngine {
             "understand", "understood", "watch", "watched", "follow", "followed", "stop", "stopped", "create", "created",
             "speak", "spoke", "spoken", "read", "allow", "allowed", "add", "added", "spend", "spent", "grow", "grew", "grown",
             "open", "opened", "walk", "walked", "win", "won", "offer", "offered", "remember", "remembered", "love", "loved",
-            "consider", "considered", "appear", "appeared", "buy", "bought", "wait", "waited", "serve", "served", "die", "died",
+            "consider", "considered", "appear", "appeared", "buy", "bought", "wait", "waited", "serve", "served",
             "send", "sent", "expect", "expected", "build", "built", "stay", "stayed", "fall", "fell", "fallen", "cut",
-            "reach", "reached", "kill", "killed", "remain", "remained"
+            "reach", "reached", "remain", "remained"
     ));
     private static final java.util.Set<String> COMMON_SKELETONS;
     static {
@@ -89,6 +90,10 @@ public class SubstitutionEngine {
 
     public SubstitutionEngine(Context context) {
         loadSubstitutionsAsync(context);
+    }
+
+    public void setClassifier(ToxicityClassifier classifier) {
+        this.classifier = classifier;
     }
 
     private void loadSubstitutionsAsync(Context context) {
@@ -216,6 +221,9 @@ public class SubstitutionEngine {
                     replacement = skeletonToReplacement.get(skeleton);
                 } else if (isDynamicToxic(skeleton)) { // check skeleton against dynamic list
                      replacement = "";
+                } else if (classifier != null && classifier.isToxic(clean, 0.35) && !isWhitelisted(clean)) {
+                     // ML model detects toxicity, and it's not whitelisted -> suggested fix is removal
+                     replacement = "";
                 }
             }
             
@@ -271,6 +279,15 @@ public class SubstitutionEngine {
         if (dynamicToxicWords.contains(word)) return true;
         String skeleton = word.replaceAll("(.)\\1+", "$1");
         return dynamicToxicSkeletons.contains(skeleton);
+    }
+
+    private boolean isWhitelisted(String word) {
+        if (word == null) return false;
+        String lower = word.toLowerCase().trim();
+        if (COMMON_WORDS.contains(lower) || dynamicSafeWords.contains(lower)) return true;
+
+        String rep = substitutions.get(lower);
+        return rep != null && rep.equalsIgnoreCase(lower);
     }
 
     private String postProcessGrammar(String text) {
@@ -329,7 +346,11 @@ public class SubstitutionEngine {
         if (toxicWordsSet.contains(lower) || dynamicToxicWords.contains(lower)) return true;
 
         String skeleton = lower.replaceAll("(.)\\1+", "$1");
-        return toxicSkeletons.contains(skeleton) || dynamicToxicSkeletons.contains(skeleton);
+        if (toxicSkeletons.contains(skeleton) || dynamicToxicSkeletons.contains(skeleton)) return true;
+
+        if (classifier != null && classifier.isToxic(lower) && !isWhitelisted(lower)) return true;
+
+        return false;
     }
 
     public boolean isWhitelistedPhrase(String input) {

@@ -1,0 +1,21 @@
+{
+  "device": "Xiaomi M2101K6G",
+  "android": "13",
+  "api": 33,
+  "ram_bytes": 7936532480,
+  "processor": "SM7150",
+  "warmup_trials": 100,
+  "recorded_trials": 600,
+  "timing_method": "System.nanoTime, sequential trials, debug build, fixed six samples",
+  "classifier": {
+    "mean_ms": 0.4121640833333333,
+    "median_ms": 0.385599,
+    "p95_ms": 0.644792
+  },
+  "core_detection": {
+    "mean_ms": 1.4967686633333332,
+    "median_ms": 1.6622395,
+    "p95_ms": 2.890729
+  },
+  "scope": "Core shared model\/rule decision path; excludes unknown-word lookup, IME dispatch, 300 ms debounce and alert rendering. Use DetectionTiming logs for actual keyboard flow."
+}

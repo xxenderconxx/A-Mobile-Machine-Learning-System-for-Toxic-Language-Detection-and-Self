@@ -1,0 +1,29 @@
+{
+  "evaluation_samples": 63978,
+  "baseline": "Independently refit TF-IDF-only logistic regression; identical training records, fitted lexical vocabulary, C, class weights, solver and seed; own validation-only F1 threshold",
+  "scope": "Classifier only, without explicit rules, personal overrides or professional-context adjustments; binary toxicity, not target classification",
+  "tfidf_only": {
+    "threshold": 0.7000000000000003,
+    "tn": 52638,
+    "fp": 5097,
+    "fn": 779,
+    "tp": 5464,
+    "fpr": 0.08828267082359054,
+    "accuracy": 0.9081559286004564,
+    "precision": 0.5173752485560079,
+    "recall": 0.8752202466762774,
+    "f1": 0.6503213520590335
+  },
+  "tfidf_plus_entity": {
+    "threshold": 0.78,
+    "tn": 53580,
+    "fp": 4155,
+    "fn": 994,
+    "tp": 5249,
+    "fpr": 0.07196674460898934,
+    "accuracy": 0.9195192097283441,
+    "precision": 0.5581667375584858,
+    "recall": 0.8407816754765337,
+    "f1": 0.6709273343132869
+  }
+}

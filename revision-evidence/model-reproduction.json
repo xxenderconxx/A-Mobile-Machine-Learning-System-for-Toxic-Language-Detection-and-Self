@@ -1,0 +1,17 @@
+{
+  "sklearn_version": "1.9.0",
+  "original_sha256": "6652cbdb3a19e8359bdb052c71b9bc594919e043510b1136a72a4922f8a45fcd",
+  "semantic_export_equal": true,
+  "original_intercept": -2.20993,
+  "reproduced_intercept": -2.20993,
+  "original_threshold": 0.78,
+  "reproduced_threshold": 0.78,
+  "original_feature_count": 38921,
+  "reproduced_feature_count": 38921,
+  "feature_set_equal": true,
+  "max_exported_weight_delta": 0.0,
+  "max_exported_idf_delta": 0.0,
+  "training_rows": 127656,
+  "validation_rows": 31915,
+  "label_definition": "any of toxic, severe_toxic, obscene, threat, insult, identity_hate == 1"
+}

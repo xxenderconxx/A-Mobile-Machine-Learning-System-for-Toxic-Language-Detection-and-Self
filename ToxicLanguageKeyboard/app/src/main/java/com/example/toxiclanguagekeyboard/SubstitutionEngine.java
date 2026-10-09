@@ -86,7 +86,7 @@ public class SubstitutionEngine {
         }
     }
     
-    private boolean isLoaded = false;
+    private volatile boolean isLoaded = false;
 
     public SubstitutionEngine(Context context) {
         loadSubstitutionsAsync(context);
@@ -98,16 +98,25 @@ public class SubstitutionEngine {
 
     private void loadSubstitutionsAsync(Context context) {
         new Thread(() -> {
-            try {
-                InputStream is = context.getAssets().open("substitutions.json");
-                int size = is.available();
-                byte[] buffer = new byte[size];
-                is.read(buffer);
-                is.close();
-                String json = new String(buffer, StandardCharsets.UTF_8);
-                JSONObject jsonObject = new JSONObject(json);
-                Iterator<String> keys = jsonObject.keys();
+            try (InputStream stream = context.getAssets().open("substitutions.json")) {
+                loadFromStream(stream);
+            } catch (Exception failure) {
+                android.util.Log.e("SubstitutionEngine", "Error loading substitutions", failure);
+            }
+        }).start();
+    }
 
+    public SubstitutionEngine(InputStream stream) throws Exception {
+        loadFromStream(stream);
+    }
+
+    private void loadFromStream(InputStream stream) throws Exception {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[16384];
+        int count;
+        while ((count = stream.read(buffer)) != -1) bytes.write(buffer, 0, count);
+        JSONObject jsonObject = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+        Iterator<String> keys = jsonObject.keys();
                 Map<String, String> tempSubstitutions = new HashMap<>();
                 java.util.Set<String> tempToxicWordsSet = new java.util.HashSet<>();
                 java.util.Set<String> tempToxicSkeletons = new java.util.HashSet<>();
@@ -149,10 +158,6 @@ public class SubstitutionEngine {
                 safePhrasePatterns = tempSafePhrasePatterns;
                 sortedSubstitutionKeys = tempSortedKeys;
                 isLoaded = true;
-            } catch (Exception e) {
-                android.util.Log.e("SubstitutionEngine", "Error loading substitutions", e);
-            }
-        }).start();
     }
 
     public boolean isLoaded() {
@@ -189,7 +194,7 @@ public class SubstitutionEngine {
 
             Pattern pattern = phrasePatterns.get(key);
             if (pattern != null) {
-                result = pattern.matcher(result).replaceAll(replacement);
+                result = pattern.matcher(result).replaceAll(Matcher.quoteReplacement(replacement));
             }
         }
 
@@ -276,7 +281,9 @@ public class SubstitutionEngine {
     }
 
     private boolean isDynamicToxic(String word) {
+        if (word.length() <= 1) return false;
         if (dynamicToxicWords.contains(word)) return true;
+        if (!Pattern.compile("(.)\\1{2,}").matcher(word).find()) return false;
         String skeleton = word.replaceAll("(.)\\1+", "$1");
         return dynamicToxicSkeletons.contains(skeleton);
     }
@@ -323,6 +330,7 @@ public class SubstitutionEngine {
         
         // 1. Check for toxic phrases from dictionary (exact and elongated)
         for (Map.Entry<String, Pattern> entry : phrasePatterns.entrySet()) {
+            if (entry.getKey().length() <= 1 || dynamicSafeWords.contains(entry.getKey())) continue;
             if (entry.getValue().matcher(checkInput).find()) {
                 return true;
             }
@@ -343,12 +351,15 @@ public class SubstitutionEngine {
     public boolean isToxicWord(String word) {
         if (word == null) return false;
         String lower = word.toLowerCase().trim();
+        if (lower.length() <= 1) return false;
+        if (dynamicSafeWords.contains(lower)) return false;
         if (toxicWordsSet.contains(lower) || dynamicToxicWords.contains(lower)) return true;
 
         String skeleton = lower.replaceAll("(.)\\1+", "$1");
-        if (toxicSkeletons.contains(skeleton) || dynamicToxicSkeletons.contains(skeleton)) return true;
+        // Ordinary double letters are not obfuscation: "as" must not match "ass", or "but" "butt".
+        if (Pattern.compile("(.)\\1{2,}").matcher(lower).find()
+                && (toxicSkeletons.contains(skeleton) || dynamicToxicSkeletons.contains(skeleton))) return true;
 
-        if (classifier != null && classifier.isToxic(lower) && !isWhitelisted(lower)) return true;
 
         return false;
     }

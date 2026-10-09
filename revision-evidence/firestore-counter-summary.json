@@ -1,0 +1,25 @@
+{
+  "source": "Firebase Console, Firestore research_reports collection",
+  "read_only_review": true,
+  "documents_read": 37,
+  "distinct_accounts": 12,
+  "latest_reports": {
+    "empty": 8,
+    "with_activity": 4,
+    "incomplete": 0,
+    "missing_account_id": 0
+  },
+  "totals_from_latest_nonempty_reports": {
+    "detections": 62,
+    "corrections": 29,
+    "ignored_alerts": 31,
+    "detections_not_counted_as_correction_or_ignore": 2
+  },
+  "rates_percent": {
+    "pooled_correction_rate": 46.77,
+    "pooled_ignored_rate": 50.0,
+    "mean_stored_self_correction_rate_across_four_accounts": 53.32,
+    "detection_weighted_stored_self_correction_rate": 46.77
+  },
+  "privacy": "Account IDs, document IDs, and individual timestamps are omitted. Latest snapshots were grouped by account ID in memory."
+}

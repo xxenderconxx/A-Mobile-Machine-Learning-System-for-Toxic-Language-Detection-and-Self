@@ -31,7 +31,7 @@ public class OnboardingActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = getSharedPreferences("ToxicKeyboardPrefs", MODE_PRIVATE);
+        prefs = SecurePreferences.open(this);
         if (prefs.getBoolean("has_completed_tutorial", false)) {
             startActivity(new Intent(this, MainActivity.class));
             finish();
@@ -39,6 +39,8 @@ public class OnboardingActivity extends AppCompatActivity {
         }
         
         setContentView(R.layout.activity_onboarding);
+        findViewById(R.id.btn_onboarding_benchmark).setOnClickListener(v ->
+                startActivity(new Intent(this, BenchmarkActivity.class)));
         
         viewPager = findViewById(R.id.viewPager);
         btnNext = findViewById(R.id.btnNext);

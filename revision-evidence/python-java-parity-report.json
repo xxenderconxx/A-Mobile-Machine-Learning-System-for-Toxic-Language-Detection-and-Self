@@ -1,0 +1,12 @@
+{
+  "total_cases": 1063,
+  "matching_predictions": 1063,
+  "max_probability_difference": 1.4432899320127035e-15,
+  "max_baseline_probability_difference": 1.6653345369377348e-15,
+  "normalization_mismatches": 0,
+  "numeric_or_preprocessing_disagreements": [],
+  "threshold": 0.78,
+  "reference": "fitted sklearn model and vectorizers from exactly reproduced v55 training script; professional-context adjustments excluded from reference parity",
+  "prediction_disagreements": 0,
+  "disagreement_rate": 0.0
+}

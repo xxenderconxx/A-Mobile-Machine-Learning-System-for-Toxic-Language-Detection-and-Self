@@ -1,0 +1,29 @@
+{
+  "protocol": "revision-core-v1",
+  "completed_at_utc": "2026-10-09T16:49:12.879534Z",
+  "app_version": "1.3.3",
+  "app_version_code": 4,
+  "build_type": "debug",
+  "model_sha256": "f0eeee70d671abe9e6c1e3c95306391178b830a7d3e1eac3c07e12ede53de16a",
+  "rules_sha256": "4aae5e1f2b0aaf2ccf51426bf9a44e27f6a44e7e427629f09f0f86d9e351b43c",
+  "device": "samsung SM-A525F",
+  "android": "14",
+  "api": 34,
+  "ram_bytes": 7852994560,
+  "processor": "SM7125",
+  "warmup_trials": 100,
+  "recorded_trials": 600,
+  "sample_count": 6,
+  "timing_method": "System.nanoTime, sequential trials, fixed six samples, model loading excluded",
+  "classifier": {
+    "mean_ms": 1.4067088716666667,
+    "median_ms": 1.27138,
+    "p95_ms": 2.106719
+  },
+  "core_detection": {
+    "mean_ms": 4.275813268333334,
+    "median_ms": 5.182839,
+    "p95_ms": 7.292343
+  },
+  "scope": "Core shared model\/rule decision path; excludes unknown-word lookup, IME dispatch, 300 ms debounce and alert rendering."
+}

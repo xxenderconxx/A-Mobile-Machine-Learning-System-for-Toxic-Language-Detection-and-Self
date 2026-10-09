@@ -1,0 +1,17 @@
+{
+  "scope": "49 developer-authored sanity cases; not expert replay or live keyboard flow",
+  "classifier_label": {
+    "tp": 15,
+    "fp": 2,
+    "tn": 32,
+    "fn": 0,
+    "fpr": 0.058823529411764705
+  },
+  "warning": {
+    "tp": 15,
+    "fp": 3,
+    "tn": 31,
+    "fn": 0,
+    "fpr": 0.08823529411764706
+  }
+}

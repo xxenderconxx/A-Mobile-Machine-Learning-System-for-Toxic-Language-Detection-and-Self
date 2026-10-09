@@ -1,0 +1,63 @@
+{
+  "project": "toxiclanguagekeyboard",
+  "checked_at": "2026-10-09T15:37:18.996144+00:00",
+  "tests": [
+    {
+      "test": "unauthenticated contribution rejected",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    },
+    {
+      "test": "anonymous Firebase authentication enabled",
+      "http_status": 200,
+      "expected_status": 200,
+      "passed": true,
+      "error_code": null
+    },
+    {
+      "test": "cross-user document write rejected",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    },
+    {
+      "test": "spoofed userId rejected",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    },
+    {
+      "test": "unexpected field rejected",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    },
+    {
+      "test": "authenticated owned contribution accepted",
+      "http_status": 200,
+      "expected_status": 200,
+      "passed": true,
+      "error_code": null
+    },
+    {
+      "test": "immediate repeat rejected by cooldown",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    },
+    {
+      "test": "client contribution read rejected",
+      "http_status": 403,
+      "expected_status": 403,
+      "passed": true,
+      "error_code": "PERMISSION_DENIED"
+    }
+  ],
+  "synthetic_document": "contributions/g4HGe9ejlMRPMOBVNyxkSxuYcgD2"
+}

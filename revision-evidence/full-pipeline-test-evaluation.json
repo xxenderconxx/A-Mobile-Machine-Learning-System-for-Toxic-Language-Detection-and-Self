@@ -1,0 +1,43 @@
+{
+  "dataset": "test.csv merged one-to-one with test_labels.csv, excluding records where toxic=-1",
+  "row_count": 63978,
+  "positive": 6243,
+  "negative": 57735,
+  "target": "any of toxic, severe_toxic, obscene, threat, insult, identity_hate equals 1",
+  "model_sha256": "f0eeee70d671abe9e6c1e3c95306391178b830a7d3e1eac3c07e12ede53de16a",
+  "rules_sha256": "4aae5e1f2b0aaf2ccf51426bf9a44e27f6a44e7e427629f09f0f86d9e351b43c",
+  "threshold": 0.78,
+  "threshold_selected_on": "training script validation set, before test evaluation",
+  "pipeline": "Production Java ToxicityClassifier plus SubstitutionEngine explicit rules, DetectionPipeline suppression semantics; no personal false-positive overrides or professional-context adjustment.",
+  "classifier_only": {
+    "tn": 53580,
+    "fp": 4155,
+    "fn": 994,
+    "tp": 5249,
+    "fpr": 0.07196674460898934,
+    "accuracy": 0.9195192097283441,
+    "precision": 0.5581667375584858,
+    "recall": 0.8407816754765337
+  },
+  "explicit_rules_with_phrase_suppression": {
+    "tn": 46960,
+    "fp": 10775,
+    "fn": 768,
+    "tp": 5475,
+    "fpr": 0.18662856153113364,
+    "accuracy": 0.8195786051455187,
+    "precision": 0.33692307692307694,
+    "recall": 0.8769822200864968
+  },
+  "combined_classifier_and_rules": {
+    "tn": 46023,
+    "fp": 11712,
+    "fn": 309,
+    "tp": 5934,
+    "fpr": 0.2028578851649779,
+    "accuracy": 0.812107286879865,
+    "precision": 0.3362801768106086,
+    "recall": 0.9505045651129265
+  },
+  "interpretation": "Full test-set estimate of revised-version classifier/rules logic; not the unavailable expert 3,000-sample replay, and not live keyboard UI or human expert evaluation."
+}

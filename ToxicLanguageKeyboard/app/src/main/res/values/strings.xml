@@ -8,7 +8,7 @@
     <string name="btn_overlay_permission">3. Grant Overlay Permission</string>
 
     <string name="disclaimer_title">Legal Disclaimer</string>
-    <string name="disclaimer_message">This keyboard uses Machine Learning to detect toxic language. To provide real-time feedback, it analyzes your keystrokes locally on this device. No data is sent to the cloud or stored externally.\n\nBy using this keyboard, you agree to this local monitoring for self-regulation purposes.</string>
+    <string name="disclaimer_message">English toxicity detection runs on this device. Clipboard history is not collected. Your personal dictionary, flagged words, false-positive reports and activity counts are saved in encrypted local storage. App backup and transfer are excluded.\n\nNothing is submitted automatically. If you confirm Upload Contribution, the reviewed words and sentences, an authenticated installation ID and submission time are sent to Firebase for model research. If you confirm Upload Research Report, activity counts and usage time, together with an authenticated installation ID and submission time, are sent to Firebase; no message text is included. Administrators can retain submissions; deleting local data does not delete server records.</string>
     <string name="btn_agree">I Agree</string>
     <string name="btn_exit">Exit</string>
     <string name="toast_metrics_reset">Metrics reset</string>
@@ -39,15 +39,15 @@
     <string name="no_feedback_data">No feedback data to upload</string>
     <string name="feedback_uploaded">Feedback uploaded successfully</string>
     <string name="upload_confirmation_title">Upload Contribution?</string>
-    <string name="upload_confirmation_message">This will temporarily use your internet connection to send anonymous feedback (toxic words and false positives) to improve the model. The app will return to offline mode immediately after.</string>
+    <string name="upload_confirmation_message">Send all currently reviewed safe words, flagged words and false-positive sentences to Firebase for model research, together with an authenticated installation ID and submission time? Text may contain personal information: review and remove it first. Submissions are pseudonymous, not guaranteed anonymous. Administrators can retain them; clearing local data does not delete them from the server. No upload occurs unless you confirm.</string>
     <string name="btn_allow_and_upload">Allow &amp; Upload</string>
     <string name="model_updated_title">Model Updated</string>
     <string name="model_updated_message">A new version of the app is installed. Your local word flags have been reset to align with the updated global filtering model.</string>
     <string name="btn_privacy_info">Privacy &amp; Research Info</string>
-    <string name="language_disclaimer">Optimized for English text. Taglish/Tagalog support is experimental.</string>
+    <string name="language_disclaimer">Supports English only. Filipino and Taglish support remain future work.</string>
     <string name="research_info_title">Scope &amp; Privacy Policy</string>
-    <string name="research_info_message"><b>Scope:</b> This tool currently supports English text only. Analysis is performed locally on-device.\n\n<b>Self-Regulation:</b> This app is designed for behavioral self-regulation and follows ISO 25010 usability standards. It does not report your private messages to external parties.\n\n<b>Data:</b> Feedback data (if contributed) is anonymized and used only for model refinement.</string>
-    <string name="btn_export_metrics">upload Research Report</string>
+    <string name="research_info_message">English analysis runs locally. Clipboard history is not collected. Dictionary entries, feedback and activity counts are encrypted on this device and excluded from backup and transfer. Feedback text is uploaded only after review and confirmation; research metrics require a separate confirmation. Uploads include an authenticated installation ID and timestamp. Research administrators can retain submissions. Clearing local records does not remove server records.</string>
+    <string name="btn_export_metrics">Upload Research Report</string>
     <string name="label_safe">Safe to type</string>
     <string name="label_toxic">Toxic language detected</string>
     <string name="label_queued_contributions">Queued Contributions:</string>
@@ -58,11 +58,11 @@
     <string name="onboarding_title_1">Welcome to Toxic Keyboard</string>
     <string name="onboarding_desc_1">Reduce toxicity in your digital life with real-time AI-powered filtering and suggestions.</string>
     <string name="onboarding_title_2">Local &amp; Private</string>
-    <string name="onboarding_desc_2">All typing analysis happens locally on your device. Your private messages never leave your phone.</string>
+    <string name="onboarding_desc_2">Typing analysis runs locally on your device. Messages are not sent during ordinary typing. Only information you explicitly choose to upload, such as selected feedback or a research report, leaves your phone.</string>
     <string name="onboarding_title_3">Self-Regulation</string>
     <string name="onboarding_desc_3">Learn to communicate better with metrics that track your self-correction rate over time.</string>
     <string name="onboarding_title_4">Help Research</string>
-    <string name="onboarding_desc_4">Optionally contribute anonymous flags to improve our model for everyone.</string>
+    <string name="onboarding_desc_4">Review optional word and sentence feedback before sending it for research. Uploads use an authenticated installation ID; they are not guaranteed anonymous.</string>
     <string name="btn_next">Next</string>
     <string name="btn_get_started">Get Started</string>
     <string name="btn_skip">Skip</string>
@@ -81,4 +81,13 @@
     <string name="tutorial_step_11">Upload your feedback to help improve our model.</string>
     <string name="btn_tutorial_finish">Finish Tutorial</string>
     <string name="content_description_help">Help</string>
+    <string name="benchmark_title">Phone Benchmark</string>
+    <string name="benchmark_run">Run Benchmark</string>
+    <string name="benchmark_share">Share Results</string>
+    <string name="benchmark_instructions">Close other apps and keep this screen open during the test. The test runs fixed examples locally; it does not read your messages or require keyboard setup.\n\nResults contain phone specifications and timing only. This measures detector speed, excluding keyboard delay and popup display.</string>
+    <string name="benchmark_ready">Ready. Tap Run Benchmark to begin.</string>
+    <string name="benchmark_running">Testing… Please keep this screen open.</string>
+    <string name="benchmark_failed">The test did not finish. Please tap Run Benchmark to try again.</string>
+    <string name="benchmark_share_failed">Could not share the file. Run the benchmark again and retry.</string>
+    <string name="benchmark_result">Test complete — %1$s, Android %2$s\n\nClassifier median: %3$.3f ms\nCore detection median: %4$.3f ms\nCore detection p95: %5$.3f ms\n\nTap Share Results to send the results file.</string>
 </resources>

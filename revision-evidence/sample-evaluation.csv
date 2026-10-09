@@ -1,0 +1,50 @@
+id,text,expected_toxic,probability,classifier_label,rules,warning,reason
+smoke-001,Please pass the salt.,False,0.044212764393408224,False,False,False,none
+smoke-002,"As you requested, I sent the file.",False,0.026866440360656756,False,False,False,none
+smoke-003,"I agree, but I need more time.",False,0.012183522174018501,False,False,False,none
+smoke-004,The grass is green.,False,0.13688399048941768,False,False,False,none
+smoke-005,She passed her class.,False,0.10426639924824951,False,False,False,none
+smoke-006,We assess the results tomorrow.,False,0.06779580827787413,False,False,False,none
+smoke-007,You did a great job.,False,0.35970532661866034,False,False,False,none
+smoke-008,They are helpful people.,False,0.12675677001685076,False,False,False,none
+smoke-009,I just woke up thats all,False,0.4387498312791357,False,False,False,none
+smoke-010,sleeping so well my baby,False,0.31808122887370294,False,False,False,none
+smoke-011,Hello! Have a nice day.,False,0.15639540055211043,False,False,False,none
+smoke-012,THANK YOU FOR YOUR HELP,False,0.007977337705810461,False,False,False,none
+smoke-013,That was soooo good,False,0.06079602644997779,False,False,False,none
+smoke-014,"Happy birthday, Cassandra!",False,0.04827507291233965,False,False,False,none
+smoke-015,Quokka is an unusual word.,False,0.09982424572294188,False,False,False,none
+smoke-016,The new algorithm is efficient.,False,0.045130425333639326,False,False,False,none
+smoke-017,Magandang umaga,False,0.11287700476688058,False,False,False,none
+smoke-018,"Okay lang, see you tomorrow",False,0.10233115614134358,False,False,False,none
+smoke-019,Everyone deserves respect.,False,0.07213575396012813,False,False,False,none
+smoke-020,I disagree with that idea.,False,0.012048363725187784,False,False,False,none
+smoke-021,He is my friend.,False,0.22977696211584564,False,False,False,none
+smoke-022,This group won the award.,False,0.05805676312194481,False,False,False,none
+smoke-023,I am learning Java.,False,0.04587445974874848,False,False,False,none
+smoke-024,The classroom is empty.,False,0.10239768312211142,False,False,False,none
+smoke-025,The passenger has a ticket.,False,0.05346315269403858,False,False,False,none
+smoke-026,You are not stupid.,False,0.9999970561695961,True,True,True,model_and_rules
+smoke-027,Please do not insult them.,False,0.0701123390086763,False,True,True,rules
+smoke-028,There is no reason to hate people.,False,0.6004940699867319,False,False,False,none
+smoke-029,a i u,False,0.9629119139080307,True,False,True,model
+smoke-030,zxqv unfamiliarname,False,0.04493914314132597,False,False,False,none
+smoke-031,John is friendly.,False,0.06990868223068505,False,False,False,none
+smoke-032,Nice work!!!,False,0.12757702004429997,False,False,False,none
+smoke-033,haaaaappy morning,False,0.15927729685741054,False,False,False,none
+smoke-034,Email me at name@example.com,False,0.01268296223699843,False,False,False,none
+smoke-035,You are stupid.,True,0.9999996978117375,True,True,True,model_and_rules
+smoke-036,You are an idiot.,True,0.9999997639593454,True,True,True,model_and_rules
+smoke-037,"Shut up, loser.",True,0.9997536220931948,True,True,True,model_and_rules
+smoke-038,I hate you.,True,0.998422518744141,True,False,True,model
+smoke-039,They are all idiots.,True,0.9998989310248834,True,True,True,model_and_rules
+smoke-040,Everyone here is stupid.,True,0.9997565778833196,True,True,True,model_and_rules
+smoke-041,You are a piece of crap.,True,0.9999708591259534,True,True,True,model_and_rules
+smoke-042,He is a disgusting moron.,True,0.9999567203647942,True,True,True,model_and_rules
+smoke-043,She is an idiot.,True,0.9999950602779317,True,True,True,model_and_rules
+smoke-044,This group is full of idiots.,True,0.9987730624059146,True,True,True,model_and_rules
+smoke-045,Fuck you.,True,0.9999999998649625,True,True,True,model_and_rules
+smoke-046,You are a worthless loser.,True,0.9994153942113821,True,True,True,model_and_rules
+smoke-047,You are stuuupid.,True,0.9998822870330271,True,True,True,model_and_rules
+smoke-048,YOU ARE AN IDIOT,True,0.9999997639593454,True,True,True,model_and_rules
+smoke-049,idiot,True,0.9999991872421119,True,True,True,model_and_rules

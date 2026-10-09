@@ -33,8 +33,8 @@ android {
         applicationId = "com.example.toxiclanguagekeyboard"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.3.1"
+        versionCode = 4
+        versionName = "1.3.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -71,6 +71,7 @@ dependencies {
     // Firebase dependencies
     implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
     implementation(libs.taptargetview)
     
     testImplementation(libs.junit)

@@ -1,0 +1,28 @@
+{
+  "verified": true,
+  "files": [
+    {
+      "name": "benchmark-nubia_Z2465N-20261009T164548969419Z.json",
+      "sha256": "228471eb0038b1c3b705ef04831f14c0a08db9378421d00e24818a433edf9c22"
+    },
+    {
+      "name": "benchmark-Xiaomi_M2101K6G-20261009T165223741756Z.json",
+      "sha256": "429674e80a0a24dc642c4272a364bf9c0e6a7edeb47ef3a87b894556c6e5cfff"
+    },
+    {
+      "name": "benchmark-samsung_SM-A525F-20261009T164912879534Z.json",
+      "sha256": "0b884fd37a5c32c5f7ba82141c743d73d72d528f6e11c7910a4b4544c7a2b2ec"
+    }
+  ],
+  "matching_settings": {
+    "protocol": "revision-core-v1",
+    "app_version": "1.3.3",
+    "app_version_code": 4,
+    "build_type": "debug",
+    "warmup_trials": 100,
+    "recorded_trials": 600,
+    "sample_count": 6,
+    "model_sha256": "f0eeee70d671abe9e6c1e3c95306391178b830a7d3e1eac3c07e12ede53de16a",
+    "rules_sha256": "4aae5e1f2b0aaf2ccf51426bf9a44e27f6a44e7e427629f09f0f86d9e351b43c"
+  }
+}

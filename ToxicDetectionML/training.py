@@ -1,4 +1,6 @@
 import json
+import hashlib
+import joblib
 import re
 import numpy as np
 import pandas as pd
@@ -133,23 +135,31 @@ def main():
 
     weights_dict = {}
     for feat, coef, idf in zip(feature_names, coefs, idfs):
-        # Always retain entity features, prune others if negligible
-        if feat in ["__ent_person__", "__ent_group__"] or abs(coef) > 0.01:
-            weights_dict[feat] = {
-                "w": round(float(coef), 5),
-                "idf": round(float(idf), 5)
-            }
+        # Keep every IDF in the normalization vocabulary, including near-zero coefficients.
+        weights_dict[feat] = {"w": float(coef), "idf": float(idf)}
 
     export_data = {
-        "intercept": round(float(model.intercept_[0]), 5),
+        "feature_pipeline_version": 2,
+        "intercept": float(model.intercept_[0]),
         "threshold": best_threshold,
         "weights": weights_dict
     }
 
-    output_filename = "optimized_weights_v55.json"
+    output_filename = "model_weights_v56.json"
     print(f"Saving model ({len(weights_dict)} features) to {output_filename}...")
     with open(output_filename, "w", encoding="utf-8") as f:
         json.dump(export_data, f, indent=2)
+
+    # Preserve the fitted Python reference and exact records used for calibration.
+    joblib.dump({"model": model, "word_vec": word_vec, "char_vec": char_vec,
+                 "best_threshold": best_threshold}, "reference_pipeline.joblib")
+    for filename, split in [("training_split_ids.csv", train_df), ("validation_split_ids.csv", val_df)]:
+        split[["id", "target"]].to_csv(filename, index=False)
+    with open("model_provenance.json", "w", encoding="utf-8") as f:
+        json.dump({"train_csv_sha256": hashlib.sha256(open("train.csv", "rb").read()).hexdigest(),
+                   "label_definition": "any of the six toxicity labels", "random_state": 42,
+                   "threshold_selection": "validation only", "threshold": best_threshold,
+                   "feature_pipeline_version": 2}, f, indent=2)
 
     # =========================================================================
     # JAVA PARITY VERIFICATION ON TEST.CSV

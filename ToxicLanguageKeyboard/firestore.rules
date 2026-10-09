@@ -1,24 +1,51 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each user has ONE document in 'contributions', named by their hashed Android ID.
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+    function contributionValid() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['userId', 'timestamp', 'safe_words', 'toxic_words', 'false_positives'])
+        && d.keys().hasOnly(['userId', 'timestamp', 'safe_words', 'toxic_words', 'false_positives'])
+        && d.timestamp == request.time
+        && d.safe_words is list && d.safe_words.size() <= 2000
+        && d.toxic_words is list && d.toxic_words.size() <= 2000
+        && d.false_positives is list && d.false_positives.size() <= 2000;
+    }
     match /contributions/{userId} {
-      allow create: if request.resource.data.userId != null;
-      allow update: if request.resource.data.userId != null
-                    && (request.time > resource.data.timestamp + duration.value(1, 'm'));
+      allow create: if owner(userId) && contributionValid();
+      allow update: if owner(userId) && resource.data.userId == request.auth.uid
+        && contributionValid()
+        && request.time > resource.data.timestamp + duration.value(1, 'm')
+        && request.resource.data.safe_words.hasAll(resource.data.safe_words)
+        && request.resource.data.toxic_words.hasAll(resource.data.toxic_words)
+        && request.resource.data.false_positives.hasAll(resource.data.false_positives);
       allow read, delete: if false;
     }
 
     // Feedback collection for unrecognized words and false positives from the service
     match /feedback/{docId} {
-      allow create: if request.resource.data.userId != null;
-      allow read, update, delete: if false;
+      allow read, write: if false;
     }
 
     // Research reports collection
     match /research_reports/{docId} {
-      allow create: if request.resource.data.userId != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'timestamp', 'total_detections', 'user_corrections', 'ignored_alerts', 'self_correction_rate', 'total_usage_ms'])
+        && request.resource.data.keys().hasOnly(['userId', 'timestamp', 'total_detections', 'user_corrections', 'ignored_alerts', 'self_correction_rate', 'total_usage_ms'])
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.total_detections is int && request.resource.data.total_detections >= 0
+        && request.resource.data.user_corrections is int && request.resource.data.user_corrections >= 0
+        && request.resource.data.ignored_alerts is int && request.resource.data.ignored_alerts >= 0
+        && request.resource.data.user_corrections + request.resource.data.ignored_alerts <= request.resource.data.total_detections
+        && request.resource.data.self_correction_rate is number && request.resource.data.self_correction_rate >= 0 && request.resource.data.self_correction_rate <= 100
+        && request.resource.data.total_usage_ms is int && request.resource.data.total_usage_ms >= 0;
       allow read, update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

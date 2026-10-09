@@ -1,0 +1,20 @@
+{
+  "training_rows": 127656,
+  "validation_rows": 31915,
+  "evaluation_rows": 63978,
+  "evaluation_unique_ids": 63978,
+  "evaluation_unique_raw_texts": 63978,
+  "evaluation_negative": 57735,
+  "evaluation_positive": 6243,
+  "training_validation_id_overlap": 0,
+  "training_test_id_overlap": 0,
+  "validation_test_id_overlap": 0,
+  "training_validation_raw_text_overlap": 0,
+  "training_test_raw_text_overlap": 0,
+  "validation_test_raw_text_overlap": 0,
+  "training_validation_normalized_text_overlap": 179,
+  "training_test_normalized_text_overlap": 208,
+  "validation_test_normalized_text_overlap": 69,
+  "threshold_selected_on": "validation only, by reference training.py before test evaluation",
+  "reproduction": "Original exported model semantically reproduced exactly; source training does not fit test.csv."
+}

@@ -26,7 +26,8 @@ public class ToxicityClassifier {
     private final Map<String, FeatureMeta> weights = new HashMap<>();
     private double intercept = 0.0;
     private double defaultThreshold = 0.70;
-    private boolean isLoaded = false;
+    private volatile boolean isLoaded = false;
+    private boolean trainingPipelineV2;
 
     public ToxicityClassifier(Context context) {
         loadModelAsync(context);
@@ -62,6 +63,7 @@ public class ToxicityClassifier {
 
             intercept = jsonObject.optDouble("intercept", 0.0);
             defaultThreshold = jsonObject.optDouble("threshold", 0.70);
+            trainingPipelineV2 = jsonObject.optInt("feature_pipeline_version", 1) == 2;
 
             JSONObject weightsJson = jsonObject.getJSONObject("weights");
             Iterator<String> keys = weightsJson.keys();
@@ -87,6 +89,12 @@ public class ToxicityClassifier {
     public String normalizeText(String text) {
         if (text == null) return "";
         String lower = text.toLowerCase(Locale.ENGLISH);
+        if (trainingPipelineV2) {
+            lower = lower.replace("@", "a").replace("0", "o").replace("1", "i")
+                    .replace("3", "e").replace("$", "s").replace("!", "i");
+            lower = lower.replaceAll("(.)\\1{2,}", "$1$1");
+            return lower.replaceAll("[^a-z0-9\\s]", " ").trim().replaceAll("\\s+", " ");
+        }
         lower = lower.replaceAll("\\d+px|style=.*|#\\w+|color\\s\\w+", "");
         lower = lower.replaceAll("(.)\\1{2,}", "$1");
         lower = lower.replace("@", "a")
@@ -156,9 +164,12 @@ public class ToxicityClassifier {
     }
 
     public double calculateProbability(String text, boolean useEntityFeatures, boolean isProfessionalContext) {
-        if (text == null || text.trim().isEmpty()) return 0.0;
+        if (!isLoaded) return 0.0;
+        if (text == null || text.trim().isEmpty())
+            return trainingPipelineV2 ? calculateTrainingProbability("", useEntityFeatures, isProfessionalContext) : 0.0;
 
         String cleaned = normalizeText(text);
+        if (trainingPipelineV2) return calculateTrainingProbability(cleaned, useEntityFeatures, isProfessionalContext);
         if (cleaned.isEmpty()) return 0.0;
 
         Map<String, Integer> tokenCounts = extractAllFeatures(cleaned, useEntityFeatures);
@@ -190,6 +201,61 @@ public class ToxicityClassifier {
         }
 
         return 1.0 / (1.0 + Math.exp(-score));
+    }
+
+    private double calculateTrainingProbability(String cleaned, boolean entity, boolean professional) {
+        // sklearn word token_pattern: (?u)\b\w\w+\b, after ASCII cleaning.
+        Map<String, Integer> wordCounts = new HashMap<>();
+        List<String> words = new ArrayList<>();
+        for (String word : cleaned.split("\\s+")) if (word.length() >= 2) words.add(word);
+        for (int i=0; i<words.size(); i++) {
+            wordCounts.merge(words.get(i), 1, Integer::sum);
+            if (i+1<words.size()) wordCounts.merge(words.get(i)+" "+words.get(i+1),1,Integer::sum);
+        }
+        // char_wb pads EACH word and never creates n-grams across word boundaries.
+        Map<String, Integer> charCounts = new HashMap<>();
+        for (String word : cleaned.split("\\s+")) {
+            if (word.isEmpty()) continue;
+            String padded = " " + word + " ";
+            for (int n=3;n<=5;n++) {
+                if (padded.length() < n) {
+                    charCounts.merge("char_"+padded,1,Integer::sum);
+                    break; // sklearn counts short padded words once.
+                }
+                for (int i=0;i<=padded.length()-n;i++) charCounts.merge("char_"+padded.substring(i,i+n),1,Integer::sum);
+                if (padded.length() == n) break;
+            }
+        }
+        double score = intercept + normalizedBlock(wordCounts) + normalizedBlock(charCounts);
+        if (entity) {
+            Set<String> tokens = new HashSet<>(Arrays.asList(cleaned.split("\\s+")));
+            if (!Collections.disjoint(tokens, Arrays.asList("you","u","he","she","him","her","yourself")))
+                score += weights.get("__ent_person__").weight;
+            if (!Collections.disjoint(tokens, Arrays.asList("they","them","people","everyone","group")))
+                score += weights.get("__ent_group__").weight;
+        }
+        if (professional) score -= 0.25; // Existing app-context policy, reported separately from reference parity.
+        return 1.0 / (1.0 + Math.exp(-score));
+    }
+
+    private double normalizedBlock(Map<String, Integer> counts) {
+        double dot = 0, squared = 0;
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            FeatureMeta meta = weights.get(entry.getKey());
+            if (meta == null) continue;
+            double value = (1 + Math.log(entry.getValue())) * meta.idf;
+            dot += value * meta.weight;
+            squared += value * value;
+        }
+        return squared == 0 ? 0 : dot / Math.sqrt(squared);
+    }
+
+    public double getThreshold(boolean professional) {
+        return professional ? defaultThreshold - 0.05 : defaultThreshold;
+    }
+
+    public Map<String, Integer> featureCounts(String text, boolean entity) {
+        return java.util.Collections.unmodifiableMap(extractAllFeatures(normalizeText(text), entity));
     }
 
     public boolean isToxic(String text) {

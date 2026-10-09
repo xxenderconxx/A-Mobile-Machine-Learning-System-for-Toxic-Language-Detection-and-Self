@@ -60,10 +60,14 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private SubstitutionEngine substitutionEngine;
     private VocabularyEngine vocabularyEngine;
     private ToxicityClassifier toxicityClassifier;
+    private DetectionPipeline detectionPipeline;
+    private View activeAlert;
+    private AlertMetrics.Event alertEvent;
+    private int inputSession;
+    private long lastClassifierNanos, lastDetectionNanos, lastResponseNanos;
     private View safeIndicatorDot;
     private TextView safeIndicatorText;
 
-    private List<String> clipboardHistory = new ArrayList<>();
     private ClipboardManager clipboardManager;
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -73,7 +77,6 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     private String lastIgnoredToxicText = "";
     private String lastIgnoredUnrecognizedWord = "";
     private SharedPreferences prefs;
-    private SharedPreferences encryptedPrefs;
     private WindowManager overlayWindowManager;
     private Context windowContext;
     private java.util.Set<String> userDictionary;
@@ -100,83 +103,23 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         executorService.execute(() -> vocabularyEngine.loadDictionary(this));
         toxicityClassifier = new ToxicityClassifier(this);
         substitutionEngine.setClassifier(toxicityClassifier);
-        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-
-        try {
-            MasterKey masterKey = new MasterKey.Builder(this)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build();
-
-            encryptedPrefs = EncryptedSharedPreferences.create(
-                    this,
-                    "secure_prefs",
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            );
-        } catch (GeneralSecurityException | IOException | RuntimeException e) {
-            Log.e("ToxicKeyboard", "Error initializing EncryptedSharedPreferences, clearing corrupted data", e);
-            deleteSharedPreferences("secure_prefs");
-            try {
-                MasterKey masterKey = new MasterKey.Builder(this)
-                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                        .build();
-                encryptedPrefs = EncryptedSharedPreferences.create(
-                        this,
-                        "secure_prefs",
-                        masterKey,
-                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                );
-            } catch (Exception ex) {
-                encryptedPrefs = prefs;
-            }
-        }
+        detectionPipeline = new DetectionPipeline(toxicityClassifier, substitutionEngine);
+        prefs = SecurePreferences.open(this);
 
         loadUserDictionary();
         loadToxicFeedback();
         loadFalsePositives();
-        loadClipboardHistory();
         loadRecentEmojis();
         prefs.registerOnSharedPreferenceChangeListener(prefListener);
 
         clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboardManager != null) {
-            clipboardManager.addPrimaryClipChangedListener(this::onClipboardChanged);
-        }
     }
 
-    private void loadClipboardHistory() {
-        String history = encryptedPrefs.getString("clipboard_history", "");
-        if (!history.isEmpty()) {
-            String[] items = history.split("\u0001");
-            clipboardHistory = new ArrayList<>(java.util.Arrays.asList(items));
-        }
-    }
 
-    private void saveClipboardHistory() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < clipboardHistory.size(); i++) {
-            sb.append(clipboardHistory.get(i));
-            if (i < clipboardHistory.size() - 1) sb.append("\u0001");
-        }
-        encryptedPrefs.edit().putString("clipboard_history", sb.toString()).apply();
-    }
 
-    private void onClipboardChanged() {
-        ClipData clip = clipboardManager.getPrimaryClip();
-        if (clip != null && clip.getItemCount() > 0) {
-            CharSequence text = clip.getItemAt(0).getText();
-            if (text != null) {
-                String val = text.toString();
-                if (!clipboardHistory.contains(val)) {
-                    clipboardHistory.add(0, val);
-                    if (clipboardHistory.size() > 10) clipboardHistory.remove(10);
-                    saveClipboardHistory();
-                }
-            }
-        }
-    }
+
+
+
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
         if (KEY_USER_DICTIONARY.equals(key) || KEY_USER_DICTIONARY_HISTORY.equals(key)) {
@@ -341,6 +284,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         }
         inputBuffer.setLength(0);
         lastCheckedText = "";
+        lastIgnoredToxicText = "";
+        lastIgnoredUnrecognizedWord = "";
+        inputSession++;
+        dismissActiveAlert();
         resetKeyboardState();
     }
 
@@ -348,6 +295,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     public void onFinishInputView(boolean finishingInput) {
         super.onFinishInputView(finishingInput);
         saveUsageTime();
+        inputSession++;
+        if (classificationRunnable != null) mainHandler.removeCallbacks(classificationRunnable);
+        dismissActiveAlert();
+        inputBuffer.setLength(0);
     }
 
     @Override
@@ -365,6 +316,10 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     public void onWindowHidden() {
         super.onWindowHidden();
         saveUsageTime();
+        inputSession++;
+        if (classificationRunnable != null) mainHandler.removeCallbacks(classificationRunnable);
+        dismissActiveAlert();
+        inputBuffer.setLength(0);
     }
 
     private void saveUsageTime() {
@@ -384,6 +339,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                                   int candidatesStart, int candidatesEnd) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd);
 
+        if (sensitiveField()) { inputBuffer.setLength(0); return; }
         if (newSelStart == newSelEnd) {
             InputConnection ic = getCurrentInputConnection();
             if (ic != null) {
@@ -477,13 +433,21 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 toggleToxicityClassifier();
                 break;
             default:
-                if (primaryCode <= -200 && primaryCode > -210) {
-                    int index = -primaryCode - 200;
-                    if (index < clipboardHistory.size()) {
-                        ic.commitText(clipboardHistory.get(index), 1);
+                if (primaryCode == -200) {
+                    ClipData clip = clipboardManager == null ? null : clipboardManager.getPrimaryClip();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        CharSequence text = clip.getItemAt(0).getText();
+                        if (text != null) {
+                            ic.commitText(text, 1);
+                            if (!sensitiveField()) {
+                                CharSequence before = ic.getTextBeforeCursor(100, 0);
+                                syncBufferAndCheck(before == null ? "" : before.toString());
+                            }
+                        }
                     }
                     return;
                 }
+                if (primaryCode == 0 || (primaryCode < 0)) return;
                 if (primaryCode > 1000) {
                     String emoji = new String(Character.toChars(primaryCode));
                     ic.commitText(emoji, 1);
@@ -549,18 +513,16 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (now - lastSpaceClickTime < DOUBLE_TAP_TIMEOUT) {
             ic.deleteSurroundingText(1, 0);
             ic.commitText(". ", 1);
-            inputBuffer.setLength(Math.max(0, inputBuffer.length() - 1));
-            inputBuffer.append(". ");
-            checkToxicityAsync(true);
 
             isCaps = true;
             qwertyKeyboard.setShifted(true);
             updateShiftKeyState();
         } else {
             ic.commitText(" ", 1);
-            inputBuffer.append(" ");
-            checkToxicityAsync(false);
         }
+        // Editor selection callbacks can run during commitText; appending here would count the space twice.
+        CharSequence before = ic.getTextBeforeCursor(100, 0);
+        syncBufferAndCheck(before == null ? "" : before.toString());
         lastSpaceClickTime = now;
     }
 
@@ -613,19 +575,13 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     private void updateClipboardKeyboard() {
         if (clipboardKeyboard == null) return;
-        List<Keyboard.Key> keys = clipboardKeyboard.getKeys();
-        for (int i = 0; i < keys.size(); i++) {
-            Keyboard.Key k = keys.get(i);
-            if (k.codes.length > 0 && k.codes[0] == -2) continue;
-
-            int clipIndex = i - 1;
-            if (clipIndex >= 0 && clipIndex < clipboardHistory.size()) {
-                k.label = clipboardHistory.get(clipIndex);
-                k.codes = new int[]{ -200 - clipIndex };
-            } else if (clipIndex >= 0) {
-                k.label = "[Empty]";
-                k.codes = new int[]{ 0 };
-            }
+        // No listener, cached text, preview or history: read the system clipboard only on paste.
+        boolean first = true;
+        for (Keyboard.Key key : clipboardKeyboard.getKeys()) {
+            if (key.codes.length > 0 && key.codes[0] == -2) continue;
+            key.label = first ? "Paste current clipboard" : "";
+            key.codes = new int[]{first ? -200 : 0};
+            first = false;
         }
     }
 
@@ -665,134 +621,100 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
     }
 
     private void checkToxicityAsync(boolean isEndOfSentence) {
-        if (!prefs.getBoolean(KEY_FILTERING_ENABLED, true)) {
-            if (isEndOfSentence) inputBuffer.setLength(0);
+        if (classificationRunnable != null) mainHandler.removeCallbacks(classificationRunnable);
+        if (!prefs.getBoolean(KEY_FILTERING_ENABLED, true) || sensitiveField()) {
+            inputBuffer.setLength(0);
+            dismissActiveAlert();
+            updateSafeIndicator(true);
             return;
         }
-
+        final String snapshot = inputBuffer.toString();
+        final int session = inputSession;
+        final long requested = System.nanoTime();
+        final String contextText = getLastWords(snapshot.replaceAll(PARTIAL_EMAIL_REGEX, ""), 7);
+        final long preprocessingNanos = System.nanoTime() - requested;
+        if (contextText.trim().isEmpty()) return;
         EditorInfo info = getCurrentInputEditorInfo();
-        if (info != null) {
-            int inputType = info.inputType;
-            int classType = inputType & InputType.TYPE_MASK_CLASS;
-            int variation = inputType & InputType.TYPE_MASK_VARIATION;
-
-            boolean isPassword = (classType == InputType.TYPE_CLASS_TEXT && 
-                    (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
-                     variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
-                     variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
-                    (classType == InputType.TYPE_CLASS_NUMBER && 
-                     variation == InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-
-            boolean isEmailField = classType == InputType.TYPE_CLASS_TEXT && 
-                    (variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
-                     variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS);
-
-            if (isPassword || isEmailField) {
-                if (isEndOfSentence) inputBuffer.setLength(0);
-                mainHandler.post(() -> updateSafeIndicator(true));
-                return;
-            }
-        }
-
-        if (classificationRunnable != null) {
-            mainHandler.removeCallbacks(classificationRunnable);
-        }
-
-        String fullText = inputBuffer.toString();
-
-        boolean isProfessional = false;
-        if (info != null && info.packageName != null) {
-            String pkg = info.packageName.toLowerCase();
-            isProfessional = pkg.contains("linkedin") ||
-                    pkg.contains("gmail") ||
-                    pkg.contains("outlook") ||
-                    pkg.contains("slack") ||
-                    pkg.contains("teams") ||
-                    pkg.contains("workplace");
-        }
-        final boolean finalIsProfessional = isProfessional;
-
-        String filteredText = fullText.replaceAll(PARTIAL_EMAIL_REGEX, "");
-        String contextText = getLastWords(filteredText, 7);
-
-        if (contextText.trim().isEmpty()) {
-            if (isEndOfSentence) inputBuffer.setLength(0);
-            return;
-        }
-
+        String pkg = info == null || info.packageName == null ? "" : info.packageName.toLowerCase(java.util.Locale.ENGLISH);
+        final boolean professional = pkg.contains("linkedin") || pkg.contains("gmail") || pkg.contains("outlook")
+                || pkg.contains("slack") || pkg.contains("teams") || pkg.contains("workplace");
+        final java.util.Set<String> falsePositives = new java.util.HashSet<>(falsePositivesSet);
         classificationRunnable = () -> executorService.execute(() -> {
-            String cleanContext = contextText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
-
-            if (substitutionEngine.isLoaded()) {
-                if (isWhitelistedInEngine(contextText)) {
+            final long started = System.nanoTime();
+            DetectionPipeline.Result result = detectionPipeline.evaluate(contextText, falsePositives, professional);
+            String unknown = null;
+            if (result.ready && !result.warning) {
+                for (String word : DetectionPipeline.feedbackKey(contextText).split("\\s+")) {
+                    if (!word.isEmpty() && !word.equals(lastIgnoredUnrecognizedWord) && isUnrecognized(word)) {
+                        unknown = word;
+                        break;
+                    }
+                }
+            }
+            final String unknownWord = unknown;
+            final long detectionNanos = System.nanoTime() - started;
+            mainHandler.post(() -> {
+                long decisionStarted = System.nanoTime();
+                // Discard work for an old editor or text changed while inference was running.
+                if (session != inputSession || !snapshot.equals(inputBuffer.toString()) || sensitiveField()
+                        || !prefs.getBoolean(KEY_FILTERING_ENABLED, true)) return;
+                lastClassifierNanos = result.classifierNanos;
+                lastDetectionNanos = detectionNanos;
+                lastResponseNanos = System.nanoTime() - requested; // Includes 300 ms debounce and scheduling.
+                if (!result.ready) {
+                    if (safeIndicatorText != null) safeIndicatorText.setText("Detector loading");
+                    return;
+                }
+                updateSafeIndicator(!result.warning);
+                if (result.warning) {
+                    if (!DetectionPipeline.feedbackKey(contextText).equals(lastIgnoredToxicText)) showToxicAlert(contextText);
+                } else {
+                    // Unknown is informational, never a toxicity label. User opens details explicitly.
+                    if (unknownWord != null && safeIndicatorText != null) {
+                        safeIndicatorText.setText("Unknown word: " + unknownWord + " (tap to review)");
+                        safeIndicatorText.setOnClickListener(v -> showUnrecognizedAlert(unknownWord));
+                    }
                     if (isEndOfSentence) inputBuffer.setLength(0);
-                    mainHandler.post(() -> updateSafeIndicator(true));
-                    return;
                 }
-            }
-
-            if (falsePositivesSet.contains(cleanContext)) {
-                if (isEndOfSentence) inputBuffer.setLength(0);
-                mainHandler.post(() -> updateSafeIndicator(true));
-                return;
-            }
-
-            // STEP 1: Explicit Toxic Check (substitutions.json)
-            boolean hasExplicitToxic = false;
-            String[] wordsInContext = cleanContext.split("\\s+");
-
-            for (String w : wordsInContext) {
-                if (w.isEmpty()) continue;
-                if (isToxicResilient(w) && !userDictionary.contains(w)) {
-                    hasExplicitToxic = true;
-                    break;
-                }
-            }
-
-            // Also check for toxic phrases/skeletons via SubstitutionEngine
-            if (!hasExplicitToxic && substitutionEngine.containsToxicLanguage(contextText)) {
-                hasExplicitToxic = true;
-            }
-
-            // STEP 2: Evaluate ML Classifier
-            boolean isMlToxic = toxicityClassifier.isToxic(contextText, true, finalIsProfessional);
-
-            // If EITHER manual list OR ML classifier flags the text, halt and display Toxic Warning
-            if (hasExplicitToxic || isMlToxic) {
-                if (!lastIgnoredToxicText.isEmpty() && cleanContext.contains(lastIgnoredToxicText)) {
-                    // User already chose to proceed with this specific phrase in this context.
-                    mainHandler.post(() -> updateSafeIndicator(false));
-                    return;
-                }
-
-                mainHandler.post(() -> {
-                    updateSafeIndicator(false);
-                    showToxicAlert(contextText);
-                });
-                return; // STOP execution here.
-            }
-
-            // STEP 3: Fallback Vocabulary Check (Only reached when text is 100% NON-TOXIC)
-            for (String rawWord : wordsInContext) {
-                if (rawWord.isEmpty()) continue;
-                if (rawWord.equals(lastIgnoredUnrecognizedWord)) continue;
-
-                // Check if word is recognized by WordNet, User Dictionary, or common safe lists
-                if (isUnrecognized(rawWord)) {
-                    // Word is missing from all datasets -> Flag as Unknown Word
-                    mainHandler.post(() -> showUnrecognizedAlert(rawWord));
-                    // Break after first unrecognized word to avoid multiple dialogs
-                    break;
-                }
-            }
-
-            mainHandler.post(() -> updateSafeIndicator(true));
-            if (isEndOfSentence) {
-                inputBuffer.setLength(0);
-            }
+                lastDetectionNanos = preprocessingNanos + detectionNanos + System.nanoTime() - decisionStarted;
+                lastResponseNanos = System.nanoTime() - requested;
+                if (BuildConfig.DEBUG) Log.d("DetectionTiming", "classifier_ns=" + lastClassifierNanos
+                        + " detection_ns=" + lastDetectionNanos + " response_ns=" + lastResponseNanos);
+            });
         });
-        
         mainHandler.postDelayed(classificationRunnable, 300);
+    }
+
+    private boolean sensitiveField() {
+        EditorInfo info = getCurrentInputEditorInfo();
+        if (info == null) return true;
+        int kind = info.inputType & InputType.TYPE_MASK_CLASS;
+        int variant = info.inputType & InputType.TYPE_MASK_VARIATION;
+        return (kind == InputType.TYPE_CLASS_TEXT && (variant == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                || variant == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                || variant == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+                || variant == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+                || variant == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS))
+                || (kind == InputType.TYPE_CLASS_NUMBER && variant == InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+    }
+
+    private void dismissActiveAlert() {
+        if (activeAlert != null) {
+            if (alertEvent != null) alertEvent.dismissed();
+            alertEvent = null;
+            try { getOverlayWindowManager().removeView(activeAlert); } catch (Exception ignored) {}
+            activeAlert = null;
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        inputSession++;
+        mainHandler.removeCallbacksAndMessages(null);
+        dismissActiveAlert();
+        if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(prefListener);
+        executorService.shutdownNow();
+        super.onDestroy();
     }
 
     private boolean isWhitelistedInEngine(String text) {
@@ -801,15 +723,9 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
 
     private void updateSafeIndicator(boolean isSafe) {
         if (safeIndicatorDot != null && safeIndicatorText != null) {
-            mainHandler.post(() -> {
-                if (isSafe) {
-                    safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_green);
-                    safeIndicatorText.setText(R.string.label_safe);
-                } else {
-                    safeIndicatorDot.setBackgroundResource(R.drawable.indicator_dot_red);
-                    safeIndicatorText.setText(R.string.label_toxic);
-                }
-            });
+            safeIndicatorText.setOnClickListener(null);
+            safeIndicatorDot.setBackgroundResource(isSafe ? R.drawable.indicator_dot_green : R.drawable.indicator_dot_red);
+            safeIndicatorText.setText(isSafe ? R.string.label_safe : R.string.label_toxic);
         }
     }
 
@@ -856,7 +772,20 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         return overlayWindowManager;
     }
 
+    private View touchBlockingOverlay(View dialog) {
+        android.widget.FrameLayout blocker = new android.widget.FrameLayout(dialog.getContext());
+        blocker.setClickable(true);
+        blocker.setOnClickListener(v -> {}); // Outside taps are consumed without moving the underlying editor.
+        int width = (int) (320 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout.LayoutParams card = new android.widget.FrameLayout.LayoutParams(
+                width, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        dialog.setClickable(true);
+        blocker.addView(dialog, card);
+        return blocker;
+    }
+
     private void showToxicAlert(String toxicText) {
+        if (activeAlert != null || sensitiveField()) return;
         WindowManager windowManager = getOverlayWindowManager();
         if (windowManager == null) return;
 
@@ -871,8 +800,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 : WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 windowType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_DIM_BEHIND,
                 PixelFormat.TRANSLUCENT);
@@ -893,52 +822,59 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (btnEdit != null) {
             btnEdit.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
-                if (ic != null) {
-                    // Replace the toxic text with the suggestion
-                    ic.deleteSurroundingText(toxicText.length(), 0);
-                    if (!suggestion.isEmpty()) {
-                        ic.commitText(suggestion, 1);
-                    }
-
-                    // Update inputBuffer to reflect the change
-                    int start = Math.max(0, inputBuffer.length() - toxicText.length());
-                    inputBuffer.delete(start, inputBuffer.length());
-                    if (!suggestion.isEmpty()) {
-                        inputBuffer.append(suggestion);
-                    }
+                if (BuildConfig.DEBUG) {
+                    CharSequence selected = ic == null ? null : ic.getSelectedText(0);
+                    CharSequence before = ic == null ? null : ic.getTextBeforeCursor(toxicText.length() + 100, 0);
+                    Log.d("CleanupCheck", "connection=" + (ic != null)
+                            + " selection_length=" + (selected == null ? 0 : selected.length())
+                            + " expected_length=" + toxicText.length()
+                            + " available_length=" + (before == null ? -1 : before.length())
+                            + " exact_suffix=" + (before != null && before.toString().endsWith(toxicText))
+                            + " suggestion_changed=" + !suggestion.equals(toxicText));
                 }
-                prefs.edit().putInt(KEY_COUNT_EDITS, prefs.getInt(KEY_COUNT_EDITS, 0) + 1).apply();
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                if (EditorRewriter.replaceSuffix(ic, toxicText, suggestion)) {
+                    CharSequence current = ic.getTextBeforeCursor(100, 0);
+                    inputBuffer.setLength(0);
+                    if (current != null) inputBuffer.append(current);
+                    lastCheckedText = inputBuffer.toString();
+                    if (alertEvent != null) alertEvent.edited(true);
+                } else {
+                    Toast.makeText(this, "Text changed. Review it before applying a suggestion.", Toast.LENGTH_SHORT).show();
+                }
+                dismissActiveAlert();
             });
         }
 
         if (btnProceed != null) {
             btnProceed.setOnClickListener(v -> {
-                lastIgnoredToxicText = toxicText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
-                prefs.edit().putInt(KEY_COUNT_IGNORED, prefs.getInt(KEY_COUNT_IGNORED, 0) + 1).apply();
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                lastIgnoredToxicText = DetectionPipeline.feedbackKey(toxicText);
+                if (alertEvent != null) alertEvent.continued();
+                dismissActiveAlert();
             });
         }
 
         if (btnFalsePositive != null) {
             btnFalsePositive.setOnClickListener(v -> {
-                String cleanContext = toxicText.toLowerCase().replaceAll("[^a-z'\\s]", "").trim();
+                String cleanContext = DetectionPipeline.feedbackKey(toxicText);
                 java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_FALSE_POSITIVES_FEEDBACK, new java.util.HashSet<>()));
                 pending.add(cleanContext);
+                lastIgnoredToxicText = cleanContext;
                 prefs.edit().putStringSet(KEY_FALSE_POSITIVES_FEEDBACK, pending).apply();
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                dismissActiveAlert();
             });
         }
 
         try {
-            windowManager.addView(dialogView, params);
-            prefs.edit().putInt(KEY_COUNT_DETECTIONS, prefs.getInt(KEY_COUNT_DETECTIONS, 0) + 1).apply();
+            activeAlert = touchBlockingOverlay(dialogView);
+            windowManager.addView(activeAlert, params);
+            alertEvent = new AlertMetrics(prefs).shown();
         } catch (Exception e) {
             Log.e("ToxicKeyboard", "Error showing toxic alert overlay", e);
         }
     }
 
     private void showUnrecognizedAlert(String word) {
+        if (activeAlert != null || sensitiveField()) return;
         WindowManager windowManager = getOverlayWindowManager();
 
         LayoutInflater inflater = (windowContext != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
@@ -952,8 +888,8 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 : WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 windowType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_DIM_BEHIND,
                 PixelFormat.TRANSLUCENT);
@@ -974,7 +910,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         if (btnIgnore != null) {
             btnIgnore.setOnClickListener(v -> {
                 lastIgnoredUnrecognizedWord = word;
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                dismissActiveAlert();
             });
         }
 
@@ -983,7 +919,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>()));
                 pending.add(word);
                 prefs.edit().putStringSet(KEY_USER_DICTIONARY, pending).apply();
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                dismissActiveAlert();
             });
         }
 
@@ -992,7 +928,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
                 java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>()));
                 pending.add(word);
                 prefs.edit().putStringSet(KEY_TOXIC_FEEDBACK, pending).apply();
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                dismissActiveAlert();
             });
         }
 
@@ -1000,15 +936,17 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
             btnEditWord.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
                 if (ic != null) {
-                    ic.deleteSurroundingText(word.length(), 0);
-                    inputBuffer.setLength(Math.max(0, inputBuffer.length() - word.length()));
+                    if (EditorRewriter.replaceSuffix(ic, word, "")) {
+                        inputBuffer.setLength(Math.max(0, inputBuffer.length() - word.length()));
+                    }
                 }
-                try { windowManager.removeView(dialogView); } catch (Exception ignored) {}
+                dismissActiveAlert();
             });
         }
 
         try {
-            windowManager.addView(dialogView, params);
+            activeAlert = touchBlockingOverlay(dialogView);
+            windowManager.addView(activeAlert, params);
         } catch (Exception e) {
             Log.e("ToxicKeyboard", "Error showing unrecognized alert", e);
         }
@@ -1025,7 +963,7 @@ public class ToxicKeyboardService extends InputMethodService implements Keyboard
         InputConnection ic = getCurrentInputConnection();
         if (ic != null) {
             ic.commitText(text, 1);
-            inputBuffer.append(text);
+            if (!sensitiveField()) { inputBuffer.append(text); checkToxicityAsync(false); }
         }
     }
 

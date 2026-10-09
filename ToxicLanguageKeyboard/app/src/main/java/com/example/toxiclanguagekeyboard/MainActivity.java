@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String PREFS_NAME = "ToxicKeyboardPrefs";
     public static final String KEY_FILTERING_ENABLED = "filtering_enabled";
-    private static final String KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted";
+    private static final String KEY_DISCLAIMER_ACCEPTED = "privacy_notice_v2_accepted";
     private static final String KEY_COMPLETED_IN_APP_TUTORIAL = "has_completed_in_app_tutorial";
     public static final String KEY_COUNT_DETECTIONS = "count_detections";
     public static final String KEY_COUNT_EDITS = "count_edits";
@@ -53,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long UPLOAD_COOLDOWN_MS = 60 * 1000; // 1 minute
 
     private SharedPreferences prefs;
+    private boolean uploadInProgress;
     private TextView tvStats;
     private TextView tvFeedbackStats;
     private View viewSettings;
@@ -97,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs = SecurePreferences.open(this);
         if (!prefs.getBoolean("has_completed_tutorial", false)) {
             startActivity(new Intent(this, OnboardingActivity.class));
             finish();
@@ -129,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
         btnPrivacyInfo = findViewById(R.id.btn_privacy_info);
         btnSkipTutorial = findViewById(R.id.btn_skip_tutorial);
         btnHelp = findViewById(R.id.btn_help);
+        findViewById(R.id.btn_open_benchmark).setOnClickListener(v ->
+                startActivity(new Intent(this, BenchmarkActivity.class)));
 
         // Move skip button to DecorView to ensure it stays above the TapTargetView overlay
         btnSkipTutorial.post(() -> {
@@ -508,34 +511,41 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void exportResearchReport() {
-        if (!isNetworkAvailable()) {
-            Toast.makeText(this, "Internet required for research upload.", Toast.LENGTH_SHORT).show();
+        new AlertDialog.Builder(this)
+                .setTitle("Upload research metrics?")
+                .setMessage("Send detection, successful-edit and continue counts, correction rate, active keyboard time, an authenticated installation ID and submission time to Firebase. No message text is included in this report. Research administrators can retain the report; clearing local data does not delete server records.")
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Upload", (dialog, which) -> uploadResearchReport())
+                .show();
+    }
+
+    private void uploadResearchReport() {
+        if (uploadInProgress || !isNetworkAvailable()) {
+            Toast.makeText(this, "Connect to the internet and wait for any current upload.", Toast.LENGTH_SHORT).show();
             return;
         }
-
         int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
-        int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
-        int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
-        long usageTime = prefs.getLong(KEY_TOTAL_USAGE_TIME, 0);
-        double rate = detections > 0 ? (double) edits / detections * 100 : 0.0;
-
         java.util.Map<String, Object> report = new java.util.HashMap<>();
         report.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
         report.put("total_detections", detections);
-        report.put("user_corrections", edits);
-        report.put("ignored_alerts", ignored);
-        report.put("self_correction_rate", rate);
-        report.put("total_usage_ms", usageTime);
+        report.put("user_corrections", prefs.getInt(KEY_COUNT_EDITS, 0));
+        report.put("ignored_alerts", prefs.getInt(KEY_COUNT_IGNORED, 0));
+        report.put("self_correction_rate", detections > 0 ? 100.0 * prefs.getInt(KEY_COUNT_EDITS, 0) / detections : 0.0);
+        report.put("total_usage_ms", prefs.getLong(KEY_TOTAL_USAGE_TIME, 0));
+        uploadInProgress = true;
+        ContributionClient.authenticated(uid -> {
+            report.put("userId", uid);
+            ContributionClient.database().collection("research_reports").add(report)
+                    .addOnSuccessListener(ref -> {
+                        uploadInProgress = false;
+                        Toast.makeText(this, "Research metrics uploaded.", Toast.LENGTH_SHORT).show();
+                    }).addOnFailureListener(this::uploadFailed);
+        }, this::uploadFailed);
+    }
 
-        String androidId = android.provider.Settings.Secure.getString(getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
-        int userIdHash = androidId != null ? androidId.hashCode() : 0;
-        report.put("userId", userIdHash);
-
-        com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
-        db.collection("research_reports")
-                .add(report)
-                .addOnSuccessListener(documentReference -> Toast.makeText(this, "Research metrics uploaded securely.", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    private void uploadFailed(Exception failure) {
+        uploadInProgress = false;
+        Toast.makeText(this, "Upload failed. Your pending items remain on this device.", Toast.LENGTH_LONG).show();
     }
 
     private void showResearchInfoDialog() {
@@ -556,43 +566,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performUpload(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
-        if (!isNetworkAvailable()) {
-            Toast.makeText(this, "No internet connection available.", Toast.LENGTH_SHORT).show();
+        if (uploadInProgress || !isNetworkAvailable()) {
+            Toast.makeText(this, "Connect to the internet and wait for any current upload.", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        JSONObject payload = createUploadPayload(safe, toxic, falsePos);
-        Toast.makeText(this, "Connecting to secure server...", Toast.LENGTH_SHORT).show();
-
-        // Use Firestore to upload the bulk payload as a single contribution document
-        try {
-            com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
-            String androidId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-            int userIdHash = androidId != null ? androidId.hashCode() : 0;
-            String docId = String.valueOf(userIdHash);
-
-            java.util.Map<String, Object> updates = new java.util.HashMap<>();
-            updates.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
-            updates.put("userId", userIdHash);
-            updates.put("safe_words", com.google.firebase.firestore.FieldValue.arrayUnion(safe.toArray()));
-            updates.put("toxic_words", com.google.firebase.firestore.FieldValue.arrayUnion(toxic.toArray()));
-            updates.put("false_positives", com.google.firebase.firestore.FieldValue.arrayUnion(falsePos.toArray()));
-
-            // Use set with merge to ensure the document exists and update with arrayUnion in one call
-            db.collection("contributions")
-                    .document(docId)
-                    .set(updates, com.google.firebase.firestore.SetOptions.merge())
-                    .addOnSuccessListener(aVoid -> {
-                        movePendingToHistory(safe, toxic, falsePos);
+        // Freeze exactly the items reviewed by the user, not sets changing during the request.
+        java.util.Set<String> safeSnapshot = new java.util.HashSet<>(safe);
+        java.util.Set<String> toxicSnapshot = new java.util.HashSet<>(toxic);
+        java.util.Set<String> fpSnapshot = new java.util.HashSet<>(falsePos);
+        uploadInProgress = true;
+        ContributionClient.authenticated(uid -> {
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
+            data.put("userId", uid);
+            data.put("safe_words", com.google.firebase.firestore.FieldValue.arrayUnion(safeSnapshot.toArray()));
+            data.put("toxic_words", com.google.firebase.firestore.FieldValue.arrayUnion(toxicSnapshot.toArray()));
+            data.put("false_positives", com.google.firebase.firestore.FieldValue.arrayUnion(fpSnapshot.toArray()));
+            ContributionClient.database().collection("contributions").document(uid)
+                    .set(data, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener(unused -> {
+                        uploadInProgress = false;
+                        movePendingToHistory(safeSnapshot, toxicSnapshot, fpSnapshot);
                         prefs.edit().putLong(KEY_LAST_UPLOAD_TIME, System.currentTimeMillis()).apply();
                         Toast.makeText(this, R.string.feedback_uploaded, Toast.LENGTH_LONG).show();
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(this, "Upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    });
-        } catch (Exception e) {
-            Toast.makeText(this, "Firebase error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
+                    }).addOnFailureListener(this::uploadFailed);
+        }, this::uploadFailed);
     }
 
     private void movePendingToHistory(java.util.Set<String> safe, java.util.Set<String> toxic, java.util.Set<String> falsePos) {
@@ -604,12 +602,18 @@ public class MainActivity extends AppCompatActivity {
         addToHistory(editor, KEY_FALSE_POSITIVES_FEEDBACK_HISTORY, falsePos);
         
         // 2. Clear Pending Sets
-        editor.remove(KEY_USER_DICTIONARY);
-        editor.remove(KEY_TOXIC_FEEDBACK);
-        editor.remove(KEY_FALSE_POSITIVES_FEEDBACK);
+        removeSubmitted(editor, KEY_USER_DICTIONARY, safe);
+        removeSubmitted(editor, KEY_TOXIC_FEEDBACK, toxic);
+        removeSubmitted(editor, KEY_FALSE_POSITIVES_FEEDBACK, falsePos);
         
         editor.apply();
         updateFeedbackStats();
+    }
+
+    private void removeSubmitted(SharedPreferences.Editor editor, String key, java.util.Set<String> submitted) {
+        java.util.Set<String> pending = new java.util.HashSet<>(prefs.getStringSet(key, new java.util.HashSet<>()));
+        pending.removeAll(submitted);
+        editor.putStringSet(key, pending);
     }
 
     private void addToHistory(SharedPreferences.Editor editor, String key, java.util.Set<String> newItems) {
@@ -660,34 +664,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkVersionAndClearFeedback() {
-        int currentVersion = BuildConfig.VERSION_CODE;
-        int lastVersion = prefs.getInt(KEY_LAST_VERSION_CODE, -1);
-
-        if (lastVersion != -1 && currentVersion > lastVersion) {
-            // New version detected! Clear local refinements because the global model is likely updated.
-            prefs.edit()
-                    .remove(KEY_USER_DICTIONARY)
-                    .remove(KEY_TOXIC_FEEDBACK)
-                    .remove(KEY_FALSE_POSITIVES_FEEDBACK)
-                    .remove(KEY_USER_DICTIONARY_HISTORY)
-                    .remove(KEY_TOXIC_FEEDBACK_HISTORY)
-                    .remove(KEY_FALSE_POSITIVES_FEEDBACK_HISTORY)
-                    .putInt(KEY_LAST_VERSION_CODE, currentVersion)
-                    .apply();
-            
-            updateFeedbackStats();
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.model_updated_title)
-                    .setMessage(R.string.model_updated_message)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show();
-        } else if (lastVersion == -1) {
-            prefs.edit().putInt(KEY_LAST_VERSION_CODE, currentVersion).apply();
-        }
+        // App upgrades must preserve personal refinements and unsubmitted contributions.
+        prefs.edit().putInt(KEY_LAST_VERSION_CODE, BuildConfig.VERSION_CODE).apply();
     }
 
     private void updateStatsDisplay() {
-        if (prefs == null) return;
+        if (prefs == null || tvStats == null) return;
         int detections = prefs.getInt(KEY_COUNT_DETECTIONS, 0);
         int edits = prefs.getInt(KEY_COUNT_EDITS, 0);
         int ignored = prefs.getInt(KEY_COUNT_IGNORED, 0);
@@ -713,7 +695,7 @@ public class MainActivity extends AppCompatActivity {
     private void showMilestoneDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Research Milestone Reached!")
-                .setMessage("Thank you! You have contributed 3 hours of active keyboard usage to this study. Your participation is helping us improve behavioral self-regulation tools.")
+                .setMessage("Thank you! This device has recorded 3 hours of active keyboard usage locally. Uploading metrics is optional. Your participation is helping us improve behavioral self-regulation tools.")
                 .setPositiveButton("Continue", (dialog, which) -> prefs.edit().putBoolean("milestone_shown", true).apply())
                 .show();
     }
@@ -744,7 +726,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateFeedbackStats() {
-        if (prefs == null) return;
+        if (prefs == null || tvFeedbackStats == null || queuedAdapter == null) return;
         updateCooldownButton();
         java.util.Set<String> safe = prefs.getStringSet(KEY_USER_DICTIONARY, new java.util.HashSet<>());
         java.util.Set<String> toxic = prefs.getStringSet(KEY_TOXIC_FEEDBACK, new java.util.HashSet<>());

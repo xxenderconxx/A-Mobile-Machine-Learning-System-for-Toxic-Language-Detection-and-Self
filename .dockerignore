@@ -1,0 +1,14 @@
+.git
+**/.git
+**/.gradle
+**/build
+**/.idea
+**/captures
+**/local.properties
+**/google-services.json
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.log
+**/.DS_Store
+**/Thumbs.db

@@ -150,6 +150,49 @@ The application utilizes an on-device Natural Language Processing (NLP) model in
 
 ---
 
+## 🐳 Docker Repository
+
+The project Docker image is published on [Docker Hub](<https://hub.docker.com/r/xxenderconxx/toxic-language-detection-thesis>). The repository includes the Docker build files and the project folders shown below:
+
+```text
+.dockerignore
+.github/
+Dockerfile
+LICENSE.md
+README.md
+requirements-docker.txt
+revision-evidence/
+ToxicDetectionML/
+ToxicLanguageKeyboard/
+ToxicRephrasing/
+```
+
+### Pull the published image
+
+Make sure Docker Desktop or Docker Engine is running, then pull the published tag:
+
+```bash
+docker pull xxenderconxx/toxic-language-detection-thesis:sha-0c07262
+```
+
+Confirm that Docker downloaded it:
+
+```bash
+docker image ls xxenderconxx/toxic-language-detection-thesis
+```
+
+### Build from the repository files
+
+If you have cloned or downloaded the repository containing the `Dockerfile`, run this command from that repository's root folder:
+
+```bash
+docker build -t toxic-language-detection-thesis:local .
+```
+
+The Dockerfile and `requirements-docker.txt` define the container build. The Docker Hub page links to the published image; the root `README.md` in that repository provides the project-specific container usage details.
+
+---
+
 ## 🧠 Machine Learning & Feedback Pipeline
 
 * **Model Pipeline:** Trained on standard toxicity datasets via sequence tokenization, embedding, and export to an optimized `.json` model format.
